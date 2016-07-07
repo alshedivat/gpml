@@ -1,4 +1,4 @@
-function [post nlZ dnlZ] = infExact(hyp, mean, cov, lik, x, y)
+function [post nlZ dnlZ] = infExact(hyp, mean, cov, lik, x, y, opt)
 
 % Exact inference for a GP with Gaussian likelihood. Compute a parametrization
 % of the posterior, the negative log marginal likelihood and its derivatives
@@ -14,7 +14,7 @@ if ~ischar(likstr), likstr = func2str(likstr); end
 if ~strcmp(likstr,'likGauss')               % NOTE: no explicit call to likGauss
   error('Exact inference only possible with Gaussian likelihood');
 end
- 
+
 [n, D] = size(x);
 K = feval(cov{:}, hyp.cov, x);                      % evaluate covariance matrix
 m = feval(mean{:}, hyp.mean, x);                          % evaluate mean vector
