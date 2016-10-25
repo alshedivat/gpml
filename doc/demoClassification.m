@@ -87,10 +87,10 @@ disp('[u1,u2] = meshgrid(linspace(-2,2,5)); u = [u1(:),u2(:)];')
 [u1,u2] = meshgrid(linspace(-2,2,5)); u = [u1(:),u2(:)]; clear u1; clear u2
 disp('nu = size(u,1);')
 nu = size(u,1);
-disp('covfuncF = {@covFITC, {covfunc}, u};')
-covfuncF = {@covFITC, {covfunc}, u};
-disp('inffunc = @infFITC_Laplace;')
-inffunc = @infFITC_EP;                     % one could also use @infFITC_Laplace
+disp('covfuncF = {@apxSparse, {covfunc}, u};')
+covfuncF = {@apxSparse, {covfunc}, u};
+disp('inffunc = @infLaplace;')
+inffunc = @infLaplace;
 disp('hyp = minimize(hyp, @gp, -40, inffunc, meanfunc, covfuncF, likfunc, x, y);')
 hyp = minimize(hyp, @gp, -40, inffunc, meanfunc, covfuncF, likfunc, x, y);
 disp('[a b c d lp] = gp(hyp, inffunc, meanfunc, covfuncF, likfunc, x, y, t, ones(n,1));')

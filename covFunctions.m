@@ -1,54 +1,78 @@
-% covariance functions to be use by Gaussian process functions. There are two
+% Covariance functions to be use by Gaussian process functions. There are two
 % different kinds of covariance functions: simple and composite:
 %
-% simple covariance functions:
-%   covConst      - covariance for constant functions
-%   covCos        - sine periodic covariance function (1d) with unit period
-%   covLIN        - linear covariance function without parameters
-%   covLINard     - linear covariance function with ARD
-%   covLINiso     - linear covariance function
-%   covLINone     - linear covariance function with bias
-%   covMaternard  - Matern covariance function with nu=1/2, 3/2 or 5/2 with ARD
-%   covMaterniso  - Matern covariance function with nu=1/2, 3/2 or 5/2
-%   covNNone      - neural network covariance function
-%   covNoise      - independent covariance function (i.e. white noise)
-%   covPeriodic   - smooth periodic covariance function (1d)
-%   covPeriodicNoDC - as above but with zero DC component and properly scaled
-%   covPoly       - polynomial covariance function
-%   covPPard      - piecewise polynomial covariance function (compact support)
-%   covPPiso      - piecewise polynomial covariance function (compact support)
-%   covRQard      - rational quadratic covariance function with ARD
-%   covRQiso      - isotropic rational quadratic covariance function
-%   covSEard      - squared exponential covariance function with ARD
-%   covSEiso      - isotropic squared exponential covariance function
-%   covSEisoU     - same as above but without latent scale
-%   covSEvlen     - spatially varying lengthscale squared exponential
-%   covSEfact     - factor analysis squared exponential covariance function
-%   covSM         - spectral mixture covariance function
-%   covGaborard   - Gabor covariance function with ARD
-%   covGaborsio   - isotropic Gabor covariance function
+% 1) Elementary and standalone covariance functions:
+%   covZero       - zero covariance function
+%   covEye        - unit covariance function
+%   covOne        - unit constant covariance function
 %   covDiscrete   - precomputed covariance for discrete data
 %
-% composite (meta) covariance functions (see explanation at the bottom):
+% 2) Composite covariance functions:
 %   covScale      - scaled version of a covariance function
-%   covProd       - products of covariance functions
 %   covSum        - sums of covariance functions
-%   covADD        - additive covariance function
+%   covProd       - products of covariance functions
 %   covMask       - mask some dimensions of the data
-%   covPERard     - make ARD stationary covariance periodic
-%   covPERiso     - make isotropic stationary covariance periodic
 %   covPref       - difference covariance for preference learning
+%   covPER        - make stationary covariance periodic
+%   covADD        - additive covariance function
 %
-% special purpose (wrapper) covariance functions
-%   covFITC       - to be used in conjunction with infFITC* for large scale 
-%                   inference problems; any covariance can be wrapped by
-%                   covFITC such that the FITC approximation is applicable
-%   covGrid       - to be used in conjunction with infGrid* for large scale 
-%                   inference problems on grids resulting Kronecker structure
+% 3) Mahalanobis distance based covariances and their modes
+%   covMaha       - generic "mother" covariance
+%   covGE         - Gamma exponential covariance
+%   covMatern     - Matern covariance function with nu=1/2, 3/2 or 5/2
+%   covPP         - piecewise polynomial covariance function (compact support)
+%   covRQ         - rational quadratic covariance function
+%   covSE         - squared exponential covariance function
+%    * eye        - unit length scale
+%    * iso        - isotropic length scale
+%    * ard        - automatic relevance determination
+%    * pro        - (low-rank) projection in input space
+%    * fac        - factor analysis covariance
+%    * vle        - spatially varying length scale
 %
-% Naming convention: all covariance functions are named "cov/cov*.m". A trailing
-% "iso" means isotropic, "ard" means Automatic Relevance Determination, and
-% "one" means that the distance measure is parameterized by a single parameter.
+% 4) Dot product based covariances and their modes
+%   covDot        - generic "mother" covariance
+%   covLIN        - linear covariance function
+%   covPoly       - polynomial covariance function
+%    * eye        - unit length scale
+%    * iso        - isotropic length scale
+%    * ard        - automatic relevance determination
+%
+% 5) Standalone covariances
+%   covNNone      - neural network covariance function
+%   covLINone     - linear covariance function with bias
+%   covPeriodic   - smooth periodic covariance function (1d)
+%   covPeriodicNoDC - as above but with zero DC component and properly scaled
+%   covCos        - sine periodic covariance function (1d) with unit period
+%   covGabor      - Gabor covariance function
+%
+% 6) Shortcut covariances assembled from library
+%   covConst      - covariance for constant functions
+%   covNoise      - independent covariance function (i.e. white noise)
+%   covPERiso     - make isotropic stationary covariance periodic
+%   covPERard     - make ARD stationary covariance periodic
+%   covMaterniso  - Matern covariance function with nu=1/2, 3/2 or 5/2
+%   covMaternard  - Matern covariance function with nu=1/2, 3/2 or 5/2 with ARD
+%   covPPiso      - piecewise polynomial covariance function (compact support)
+%   covPPard      - piecewise polynomial covariance function (compact support)
+%   covRQiso      - isotropic rational quadratic covariance function
+%   covRQard      - rational quadratic covariance function with ARD
+%   covSEiso      - isotropic squared exponential covariance function
+%   covSEisoU     - same as above but without latent scale
+%   covSEard      - squared exponential covariance function with ARD
+%   covSEvlen     - spatially varying lengthscale squared exponential
+%   covSEproj     - projection squared exponential covariance function
+%   covLINiso     - linear covariance function
+%   covLINard     - linear covariance function with ARD
+%   covGaborard   - Gabor covariance function with ARD
+%   covGaborsio   - isotropic Gabor covariance function
+%   covSM         - spectral mixture covariance function
+%
+% 7) Special purpose (approximation) covariance functions
+%   apxSparse     - sparse approximation: to be used for large scale inference
+%                   problems with inducing points aka FITC
+%   apxGrid       - grid interpolation:   to be used for large scale inference
+%                   problems with Kronecker/Toeplitz/BTTB covariance matrix
 %
 % The covariance functions are written according to a special convention where
 % the exact behaviour depends on the number of input and output arguments
@@ -64,7 +88,7 @@
 % expects, using the convention that "D" is the dimension of the input space.
 % For example, calling "covRQard" returns the string '(D+2)'.
 %
-% 2) With two input arguments:
+% 2) With two input arguments and one output argument:
 %
 %    K = cov(hyp, x) equivalent to K = cov(hyp, x, [])
 %
@@ -73,24 +97,30 @@
 % D is the dimension of the input space. The returned covariance matrix is of
 % size n by n.
 %
-% 3) With three input arguments:
+% 3) With three input arguments and one output argument:
 %
-%    Ks  = cov(hyp, x, xs)
-%    kss = cov(hyp, xs, 'diag')
+%    Kz = cov(hyp, x, z)
+%    kx = cov(hyp, x, 'diag')
 %
-% The function computes test set covariances; kss is a vector of self covariances
-% for the test cases in xs (of length ns) and Ks is an (n by ns) matrix of cross
-% covariances between training cases x and test cases xs.
+% The function computes test set covariances; kx is a vector of self covariances
+% for the test cases in x (of length n) and Kz is an (n by nz) matrix of cross
+% covariances between training cases x and test cases z.
 %
-% 4) With four input arguments:
+% 4) With two output arguments:
 %
-%     dKi   = cov(hyp, x, [], i)
-%     dKsi  = cov(hyp, x, xs, i)
-%     dkssi = cov(hyp, xs, 'diag', i)
+%     [K,dK] = cov(hyp, x) equivalent to [K,dK] = cov(hyp, x, [])
+%     [K,dK] = cov(hyp, x, z)
+%     [K,dK] = cov(hyp, x, 'diag')
 %
-% The function computes and returns the partial derivatives of the
-% covariance matrices with respect to hyp(i), i.e. with
-% respect to the hyperparameter number i.
+% The function computes and returns the covariances K as in 3) above.
+% In addition to that, the (linear) directional derivative function dK is
+% returned. The two possible calls dhyp = dK(Q) and [dhyp,dx] = dK(Q) for a
+% direction Q of the same size as K are possible. The return arguments dhyp
+% and dx are the directional derivatives dhyp = d trace(Q'*K) / d hyp and
+% dx = d trace(Q'*K) / d x are of the same size as the hyperparameter
+% vector hyp and the input data x, respectively. The components of dhyp and
+% dx are defined as follows: dhyp(i) = trace(Q'*( d K / d hyp(i) ))
+% and dx(i,j) = trace(Q'*( d K / d x(i,j) )).
 %
 % Covariance functions can be specified in two ways: either as a string
 % containing the name of the covariance function or using a cell array. For
@@ -123,5 +153,5 @@
 %
 % See also doc/usageCov.m.
 %
-% Copyright (c) by Carl Edward Rasmussen and Hannes Nickisch, 2015-07-13.
+% Copyright (c) by Carl Edward Rasmussen and Hannes Nickisch, 2016-10-19.
 %                                      File automatically generated using noweb.

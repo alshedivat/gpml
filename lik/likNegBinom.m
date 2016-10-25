@@ -25,9 +25,10 @@ function [varargout] = likNegBinom(link, hyp, y, mu, s2, inf, i)
 %
 % See also LIKFUNCTIONS.M.
 %
-% Copyright (c) by Hannes Nickisch, 2015-01-21.
+% Copyright (c) by Hannes Nickisch, 2016-10-04.
 
 if nargin<4, varargout = {'1'}; return; end   % report number of hyperparameters
+if ~exist('psi'), mypsi = @digamma; else mypsi = @psi; end    % no psi in Octave
 
 lr = hyp; r = exp(lr);
 
@@ -78,7 +79,7 @@ else
       varargout = {lp,dlp,d2lp,d3lp};
     else                                                       % derivative mode
       b = (y+r)./(elg+r);
-      lp_dhyp = r*(1+log(r)-lgr-b-psi(r)+psi(y+r));
+      lp_dhyp = r*(1+log(r)-lgr-b-mypsi(r)+mypsi(y+r));
       dlp_dhyp = r*dlg.*a.*(b-1);                             % first derivative
       d2lp_dhyp = r*((d2lg.*a+dlg.*da).*(b-1)-(dlg.*a).^2.*b); % and also second
       varargout = {lp_dhyp,dlp_dhyp,d2lp_dhyp};
@@ -102,8 +103,10 @@ end
 % compute the log intensity using the inverse link function
 function varargout = g(f,link)
   varargout = cell(nargout, 1);  % allocate the right number of output arguments
-  if strcmp(link,'exp')
+  if isequal(link,'exp')
     [varargout{:}] = glm_invlink_exp(f);
-  else
+  elseif isequal(link,'logistic')
     [varargout{:}] = glm_invlink_logistic(f);
+  else
+    [varargout{:}] = glm_invlink_logistic2(link{2},f);
   end

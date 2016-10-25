@@ -4,10 +4,8 @@ function [post nlZ dnlZ] = infFITC_EP(hyp, mean, cov, lik, x, y)
 % equivalent to infEP with the covariance function:
 %   Kt = Q + G; G = diag(g); g = diag(K-Q);  Q = Ku'*inv(Kuu + snu2*eye(nu))*Ku;
 % where Ku and Kuu are covariances w.r.t. to inducing inputs xu and
-% snu2 = sn2/1e6 is the noise of the inducing inputs. We fixed the standard
-% deviation of the inducing inputs snu to be a one per mil of the measurement 
-% noise's standard deviation sn. In case of a likelihood without noise
-% parameter sn2, we simply use snu2 = 1e-6.
+% snu2 = mean(diag(Kuu))/1e6 is the noise of the inducing inputs which we
+% fixe to 0.1% of signal standard deviation.
 % For details, see The Generalized FITC Approximation, Andrew Naish-Guzman and
 %                  Sean Holden, NIPS, 2007.
 %
@@ -27,29 +25,28 @@ function [post nlZ dnlZ] = infFITC_EP(hyp, mean, cov, lik, x, y)
 % The inducing points can be specified through 1) the 2nd covFITC parameter or
 % by 2) providing a hyp.xu hyperparameters. Note that 2) has priority over 1).
 % In case 2) is provided and derivatives dnlZ are requested, there will also be
-% a dnlZ.xu field allowing to optimise w.r.t. to the inducing points xu. However
-% the derivatives dnlZ.xu can only be computed for one of the following eight
-% covariance functions: cov{Matern|PP|RQ|SE}{iso|ard}.
+% a dnlZ.xu field allowing to optimise w.r.t. to the inducing points xu.
 %
-% Copyright (c) by Hannes Nickisch, 2013-10-29.
+% Copyright (c) by Hannes Nickisch, 2016-10-13.
 %
-% See also INFMETHODS.M, COVFITC.M.
+% See also INFMETHODS.M, APXSPARSE.M, APX.M.
 
 persistent last_ttau last_tnu              % keep tilde parameters between calls
 tol = 1e-4; max_sweep = 20; min_sweep = 2;     % tolerance to stop EP iterations
 inf = 'infEP';
 cov1 = cov{1}; if isa(cov1, 'function_handle'), cov1 = func2str(cov1); end
-if ~strcmp(cov1,'covFITC'); error('Only covFITC supported.'), end    % check cov
+if ~strcmp(cov1,'covFITC') && ~strcmp(cov1,'apxSparse')  % check for correct cov
+  error('Only apxSparse supported.')
+end
 if isfield(hyp,'xu'), cov{3} = hyp.xu; end  % hyp.xu is provided, replace cov{3}
 
-[diagK,Kuu,Ku] = feval(cov{:}, hyp.cov, x);         % evaluate covariance matrix
-if ~isempty(hyp.lik)                          % hard coded inducing inputs noise
-  sn2 = exp(2*hyp.lik(end)); snu2 = 1e-6*sn2;               % similar to infFITC
-else
-  snu2 = 1e-6;
-end
+xu = cov{3}; nu = size(xu,1);                          % extract inducing points
+Kuu   = feval(cov{2}{:}, hyp.cov, xu);       % get the building blocks
+Ku = feval(cov{2}{:}, hyp.cov, xu, x);
+diagK = feval(cov{2}{:}, hyp.cov, x, 'diag');
+snu2 = 1e-6*(trace(Kuu)/nu);                    % stabilise by 0.1% of signal std
 [n, D] = size(x); nu = size(Kuu,1);
-m = feval(mean{:}, hyp.mean, x);                      % evaluate the mean vector
+[m,dm] = feval(mean{:}, hyp.mean, x);                 % evaluate the mean vector
 
 rot180   = @(A)   rot90(rot90(A));                     % little helper functions
 chol_inv = @(A) rot180(chol(rot180(A))')\eye(nu);                 % chol(inv(A))
@@ -62,7 +59,7 @@ V = R0*Ku; d0 = diagK-sum(V.*V,1)';    % initial d, needed for refresh O(n*nu^2)
 % means tilde, a subscript _ni means "not i" (for cavity parameters), or _n
 % for a vector of cavity parameters.
 
-% marginal likelihood for ttau = tnu = zeros(n,1); equals n*log(2) for likCum*
+% marginal likelihood for ttau = tnu = zeros(n,1)
 nlZ0 = -sum(feval(lik{:}, hyp.lik, y, m, diagK, inf));
 if any(size(last_ttau) ~= [n 1])      % find starting point for tilde parameters
   ttau = zeros(n,1);             % initialize to zero if we have no better guess
@@ -120,55 +117,15 @@ B = R0tV.*repmat(dd',nu,1); L = B*R0tV'; B = B*RV';
 post.L = B*B' - L;                      % L = -R0'*V*inv(Kt+diag(1./ttau))*V'*R0
 
 if nargout>2                                           % do we want derivatives?
-  dnlZ = hyp;                                   % allocate space for derivatives
-  RVdd = RV.*repmat(dd',nu,1);
-  for i=1:length(hyp.cov)
-    [ddiagK,dKuu,dKu] = feval(cov{:}, hyp.cov, x, [], i); % eval cov derivatives
-    dA = 2*dKu'-R0tV'*dKuu;                                       % dQ = dA*R0tV
-    w = sum(dA.*R0tV',2); v = ddiagK-w;   % w = diag(dQ); v = diag(dK)-diag(dQ);
-    z = dd'*(v+w) - sum(RVdd.*RVdd,1)*v - sum(sum( (RVdd*dA)'.*(R0tV*RVdd') ));
-    dnlZ.cov(i) = (z - alpha'*(alpha.*v) - (alpha'*dA)*(R0tV*alpha))/2;
-  end
+  K = apx(hyp,cov,x);              % borrow functionality to compute derivatives
+  [ldB2,solveKiW,dW,dhyp] = K.fun(ttau);   % obtain functionality depending on W
+  dnlZ = dhyp(alpha);
   for i = 1:numel(hyp.lik)                                   % likelihood hypers
     dlik = feval(lik{:}, hyp.lik, y, nu_n./tau_n, 1./tau_n, inf, i);
     dnlZ.lik(i) = -sum(dlik);
-    if i==numel(hyp.lik)
-      % since snu2 is a fixed fraction of sn2, there is a covariance-like term
-      % in the derivative as well
-      v = sum(R0tV.*R0tV,1)';
-      z = sum(sum( (RVdd*R0tV').^2 )) - sum(RVdd.*RVdd,1)*v;
-      z = z + post.alpha'*post.alpha - alpha'*(v.*alpha);
-      dnlZ.lik(i) = dnlZ.lik(i) + snu2*z;
-    end
   end
   [junk,dlZ] = feval(lik{:}, hyp.lik, y, nu_n./tau_n, 1./tau_n, inf);% mean hyps
-  for i = 1:numel(hyp.mean)
-    dm = feval(mean{:}, hyp.mean, x, i);
-    dnlZ.mean(i) = -dlZ'*dm;
-  end
-  if isfield(hyp,'xu')                   % derivatives w.r.t. inducing points xu
-    xu = cov{3};
-    cov = cov{2};             % get the non FITC part of the covariance function
-    Kpu  = cov_deriv_sq_dist(cov,hyp.cov,xu,x);             % d K(xu,x ) / d D^2
-    Kpuu = cov_deriv_sq_dist(cov,hyp.cov,xu);               % d K(xu,xu) / d D^2
-    if iscell(cov), covstr = cov{1}; else covstr = cov; end
-    if ~ischar(covstr), covstr = func2str(covstr); end
-    if numel(strfind(covstr,'iso'))>0              % characteristic length scale
-      e = 2*exp(-2*hyp.cov(1));
-    else
-      e = 2*exp(-2*hyp.cov(1:D));
-    end
-    B = (R0'*R0)*Ku;
-
-    W = ttau;
-    t = W./(1+W.*d0);
-    diag_dK = alpha.*alpha + sum(RVdd.*RVdd,1)' - t;
-    v = diag_dK+t;                 % BdK = B * ( dnlZ/dK - diag(diag(dnlZ/dK)) )
-    BdK = (B*alpha)*alpha' - B.*repmat(v',nu,1);
-    BdK = BdK + (B*RVdd')*RVdd;
-    A = Kpu.*BdK; C = Kpuu.*(BdK*B'); C = diag(sum(C,2)-sum(A,2)) - C;
-    dnlZ.xu = A*x*diag(e) + C*xu*diag(e);    % bring in data and inducing points
-  end
+  dnlZ.mean = -dm(dlZ);
 end
 
 % refresh the representation of the posterior from initial and site parameters

@@ -74,7 +74,7 @@ i = 0;                                            % zero the run length counter
 ls_failed = 0;                             % no previous line search has failed
 [f0 df0] = feval(f, X, varargin{:});          % get function value and gradient
 Z = X; X = unwrap(X); df0 = unwrap(df0);
-fprintf('%s %6i;  Value %4.6e\n\r', S, i, f0);
+fprintf('%s %6i;  Value %4.6e\r', S, i, f0);
 if exist('fflush','builtin') fflush(stdout); end
 fX = f0;
 i = i + (length<0);                                            % count epochs?!
@@ -147,7 +147,7 @@ while i < abs(length)                                      % while not finished
 
   if abs(d3) < -SIG*d0 && f3 < f0+x3*RHO*d0          % if line search succeeded
     X = X+x3*s; f0 = f3; fX = [fX' f0]';                     % update variables
-    fprintf('%s %6i;  Value %4.6e\n\r', S, i, f0);
+    fprintf('%s %6i;  Value %4.6e\r', S, i, f0);
     if exist('fflush','builtin') fflush(stdout); end
     s = (df3'*df3-df0'*df3)/(df0'*df0)*s - df3;   % Polack-Ribiere CG direction
     df0 = df3;                                               % swap derivatives
@@ -200,7 +200,7 @@ elseif isstruct(s)
   [t v] = rewrap(struct2cell(s), v);                 % convert to cell, recurse
   s = orderfields(cell2struct(t,fieldnames(s),1),p);  % conv to struct, reorder
 elseif iscell(s)
-  for i = 1:numel(s)             % cell array elements are handled sequentially 
+  for i = 1:numel(s)             % cell array elements are handled sequentially
     [s{i} v] = rewrap(s{i}, v);
   end
 end                                             % other types are not processed

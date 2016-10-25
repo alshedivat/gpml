@@ -1,6 +1,6 @@
 % startup script to make Octave/Matlab aware of the GPML package
 %
-% Copyright (c) by Carl Edward Rasmussen and Hannes Nickisch 2014-11-30.
+% Copyright (c) by Carl Edward Rasmussen and Hannes Nickisch 2016-10-16.
 
 disp(['executing gpml startup script...']);
 

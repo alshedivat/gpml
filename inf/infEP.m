@@ -7,7 +7,7 @@ function [post nlZ dnlZ] = infEP(hyp, mean, cov, lik, x, y)
 % updated in random order, for better performance when cases are ordered
 % according to the targets.
 %
-% Copyright (c) by Carl Edward Rasmussen and Hannes Nickisch 2013-09-13.
+% Copyright (c) by Carl Edward Rasmussen and Hannes Nickisch 2016-05-02.
 %
 % See also INFMETHODS.M.
 
@@ -17,9 +17,9 @@ tol = 1e-4; max_sweep = 10; min_sweep = 2;     % tolerance to stop EP iterations
 inf = 'infEP';
 n = size(x,1);
 if isnumeric(cov),  K = cov;                    % use provided covariance matrix
-else K = feval(cov{:},  hyp.cov,  x); end       % evaluate the covariance matrix
+else [K,dK] = feval(cov{:},  hyp.cov,  x); end     % covariance matrix and deriv
 if isnumeric(mean), m = mean;                         % use provided mean vector
-else m = feval(mean{:}, hyp.mean, x); end             % evaluate the mean vector
+else [m,dm] = feval(mean{:}, hyp.mean, x); end           % mean vector and deriv
 
 % A note on naming: variables are given short but descriptive names in 
 % accordance with Rasmussen & Williams "GPs for Machine Learning" (2006): mu
@@ -27,7 +27,7 @@ else m = feval(mean{:}, hyp.mean, x); end             % evaluate the mean vector
 % means tilde, a subscript _ni means "not i" (for cavity parameters), or _n
 % for a vector of cavity parameters. N(f|mu,Sigma) is the posterior.
 
-% marginal likelihood for ttau = tnu = zeros(n,1); equals n*log(2) for likCum*
+% marginal likelihood for ttau = tnu = zeros(n,1)
 nlZ0 = -sum(feval(lik{:}, hyp.lik, y, m, diag(K), inf));
 if any(size(last_ttau) ~= [n 1])      % find starting point for tilde parameters
   ttau = zeros(n,1); tnu  = zeros(n,1);        % init to zero if no better guess
@@ -79,19 +79,13 @@ if nargout>2                                           % do we want derivatives?
   nu_n  = mu./diag(Sigma)-tnu;                    % vectors of cavity parameters
   sW = sqrt(ttau);
   F = alpha*alpha'-repmat(sW,1,n).*solve_chol(L,diag(sW));   % covariance hypers
-  for i=1:length(hyp.cov)
-    dK = feval(cov{:}, hyp.cov, x, [], i);
-    dnlZ.cov(i) = -sum(sum(F.*dK))/2;
-  end
+  dnlZ.cov = -dK(F)/2;
   for i = 1:numel(hyp.lik)                                   % likelihood hypers
     dlik = feval(lik{:}, hyp.lik, y, nu_n./tau_n, 1./tau_n, inf, i);
     dnlZ.lik(i) = -sum(dlik);
   end
   [junk,dlZ] = feval(lik{:}, hyp.lik, y, nu_n./tau_n, 1./tau_n, inf);% mean hyps
-  for i = 1:numel(hyp.mean)
-    dm = feval(mean{:}, hyp.mean, x, i);
-    dnlZ.mean(i) = -dlZ'*dm;
-  end
+  dnlZ.mean = -dm(dlZ);
 end
 
 % function to compute the parameters of the Gaussian approximation, Sigma and

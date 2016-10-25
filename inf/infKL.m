@@ -11,7 +11,7 @@ function [post nlZ dnlZ] = infKL(hyp, mean, cov, lik, x, y)
 % likelihood function (see likFunctions.m), and is designed to be used with
 % gp.m. See also infMethods.m.
 %
-% Copyright (c) by Carl Edward Rasmussen and Hannes Nickisch 2013-09-13.
+% Copyright (c) by Carl Edward Rasmussen and Hannes Nickisch 2016-06-09.
 %
 % See also INFMETHODS.M.
 
@@ -20,8 +20,10 @@ persistent last_ttau last_tnu              % keep tilde parameters between calls
 tol = 1e-3; max_sweep = 15; min_sweep = 2;     % tolerance to stop KL iterations
 
 n = size(x,1);
-K = feval(cov{:}, hyp.cov, x);                  % evaluate the covariance matrix
-m = feval(mean{:}, hyp.mean, x);                      % evaluate the mean vector
+if isnumeric(cov),  K = cov;                    % use provided covariance matrix
+else [K,dK] = feval(cov{:},  hyp.cov,  x); end     % covariance matrix and deriv
+if isnumeric(mean), m = mean;                         % use provided mean vector
+else [m,dm] = feval(mean{:}, hyp.mean, x); end           % mean vector and deriv
 
 % A note on naming: variables are given short but descriptive names in 
 % accordance with Rasmussen & Williams "GPs for Machine Learning" (2006): mu
@@ -83,19 +85,11 @@ post.alpha = alpha; post.sW = sqrt(ttau); post.L = L;  % return posterior params
 if nargout>2                                           % do we want derivatives?
   v = diag(Sigma); [lp,df,d2f,dv] = likKL(v,lik,hyp.lik,y,mu);
   dnlZ = hyp;                                   % allocate space for derivatives
-  for j=1:length(hyp.cov)                                    % covariance hypers
-    dK = feval(cov{:},hyp.cov,x,[],j); AdK = A*dK;
-    z = diag(AdK) + sum(A.*AdK,2) - sum(A'.*AdK,1)';
-    dnlZ.cov(j) = alpha'*dK*(alpha/2-df) - z'*dv;
-  end
+  dnlZ.cov = dK( alpha*(alpha/2-df)'-diag(dv)*A*(eye(n)+A'-A) );    % cov hypers
   for j=1:length(hyp.lik)                                    % likelihood hypers
-    lp_dhyp = likKL(v,lik,hyp.lik,y,K*post.alpha+m,[],[],j);
-    dnlZ.lik(j) = -sum(lp_dhyp);
+    dnlZ.lik(j) = -sum( likKL(v,lik,hyp.lik,y,K*post.alpha+m,[],[],j) );
   end
-  for j=1:length(hyp.mean)                                         % mean hypers
-    dm = feval(mean{:}, hyp.mean, x, j);
-    dnlZ.mean(j) = -alpha'*dm;
-  end
+  dnlZ.mean = -dm(alpha);                                          % mean hypers
 end
 
 % function to compute the parameters of the Gaussian approximation, Sigma and

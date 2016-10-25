@@ -2,7 +2,7 @@
 %
 % See also meanFunctions.m.
 %
-% Copyright (c) by Carl Edward Rasmussen and Hannes Nickisch, 2015-07-13.
+% Copyright (c) by Carl Edward Rasmussen and Hannes Nickisch, 2016-10-19.
 %                                      File automatically generated using noweb.
 clear all, close all
 n = 5; D = 2; x = randn(n,D);            % create a random data set
@@ -31,6 +31,7 @@ mpo = {'meanPow',3,msu};       hyppo = hypsu;         % third power
 mask = [false,true];     % mask excluding all but the 2nd component
 mma = {'meanMask',mask,ml};    hypma = hypl(mask);
 mpf = {@meanPref,ml};          hyppf = 2;  % linear pref with slope
+mwp = {@meanWarp,ml,@sin,@cos};hypwp = 2;           % sin of linear
 
 % 0) specify mean function
 % mean = md; hyp = hypd; x = randi([1,s],n,1);

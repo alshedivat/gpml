@@ -37,14 +37,14 @@ if write_fig, print -depsc f1.eps; end
 disp(' '); disp('Hit any key to continue...'); pause
 
 disp(' ')
-disp('nlml = gp(hyp, @infExact, meanfunc, covfunc, likfunc, x, y)')
-nlml = gp(hyp, @infExact, meanfunc, covfunc, likfunc, x, y)
+disp('nlml = gp(hyp, @infGaussLik, meanfunc, covfunc, likfunc, x, y)')
+nlml = gp(hyp, @infGaussLik, meanfunc, covfunc, likfunc, x, y)
 disp(' ')
 
 disp('z = linspace(-1.9, 1.9, 101)'';')
 z = linspace(-1.9, 1.9, 101)';
-disp('[m s2] = gp(hyp, @infExact, meanfunc, covfunc, likfunc, x, y, z);')
-[m s2] = gp(hyp, @infExact, meanfunc, covfunc, likfunc, x, y, z);
+disp('[m s2] = gp(hyp, @infGaussLik, meanfunc, covfunc, likfunc, x, y, z);')
+[m s2] = gp(hyp, @infGaussLik, meanfunc, covfunc, likfunc, x, y, z);
 
 figure(2)
 set(gca, 'FontSize', 24)
@@ -66,16 +66,16 @@ disp(' '); disp('Hit any key to continue...'); pause
 disp(' ')
 disp('covfunc = @covSEiso; hyp2.cov = [0; 0]; hyp2.lik = log(0.1);')
 covfunc = @covSEiso; hyp2.cov = [0; 0]; hyp2.lik = log(0.1);
-disp('hyp2 = minimize(hyp2, @gp, -100, @infExact, [], covfunc, likfunc, x, y)')
-hyp2 = minimize(hyp2, @gp, -100, @infExact, [], covfunc, likfunc, x, y);
+disp('hyp2 = minimize(hyp2, @gp, -100, @infGaussLik, [], covfunc, likfunc, x, y)')
+hyp2 = minimize(hyp2, @gp, -100, @infGaussLik, [], covfunc, likfunc, x, y);
 disp(' ')
 
 disp('exp(hyp2.lik)')
 exp(hyp2.lik)
-disp('nlml2 = gp(hyp2, @infExact, [], covfunc, likfunc, x, y)')
-nlml2 = gp(hyp2, @infExact, [], covfunc, likfunc, x, y)
-disp('[m s2] = gp(hyp2, @infExact, [], covfunc, likfunc, x, y, z);')
-[m s2] = gp(hyp2, @infExact, [], covfunc, likfunc, x, y, z);
+disp('nlml2 = gp(hyp2, @infGaussLik, [], covfunc, likfunc, x, y)')
+nlml2 = gp(hyp2, @infGaussLik, [], covfunc, likfunc, x, y)
+disp('[m s2] = gp(hyp2, @infGaussLik, [], covfunc, likfunc, x, y, z);')
+[m s2] = gp(hyp2, @infGaussLik, [], covfunc, likfunc, x, y, z);
 
 disp(' ')
 figure(3)
@@ -95,10 +95,10 @@ disp(' '); disp('Hit any key to continue...'); pause
 disp(' ')
 disp('hyp.cov = [0; 0]; hyp.mean = [0; 0]; hyp.lik = log(0.1);')
 hyp.cov = [0; 0]; hyp.mean = [0; 0]; hyp.lik = log(0.1);
-disp('hyp = minimize(hyp, @gp, -100, @infExact, meanfunc, covfunc, likfunc, x, y);')
-hyp = minimize(hyp, @gp, -100, @infExact, meanfunc, covfunc, likfunc, x, y);
-disp('[m s2] = gp(hyp, @infExact, meanfunc, covfunc, likfunc, x, y, z);')
-[m s2] = gp(hyp, @infExact, meanfunc, covfunc, likfunc, x, y, z);
+disp('hyp = minimize(hyp, @gp, -100, @infGaussLik, meanfunc, covfunc, likfunc, x, y);')
+hyp = minimize(hyp, @gp, -100, @infGaussLik, meanfunc, covfunc, likfunc, x, y);
+disp('[m s2] = gp(hyp, @infGaussLik, meanfunc, covfunc, likfunc, x, y, z);')
+[m s2] = gp(hyp, @infGaussLik, meanfunc, covfunc, likfunc, x, y, z);
 
 figure(4)
 set(gca, 'FontSize', 24)
@@ -119,10 +119,10 @@ disp(' '); disp('Hit any key to continue...'); pause
 disp('large scale regression using the FITC approximation')
 disp('nu = fix(n/2); u = linspace(-1.3,1.3,nu)'';')
 nu = fix(n/2); u = linspace(-1.3,1.3,nu)';
-disp('covfuncF = {@covFITC, {covfunc}, u};')
-covfuncF = {@covFITC, {covfunc}, u};
-disp('[mF s2F] = gp(hyp, @infFITC, meanfunc, covfuncF, likfunc, x, y, z);')
-[mF s2F] = gp(hyp, @infFITC, meanfunc, covfuncF, likfunc, x, y, z);
+disp('covfuncF = {@apxSparse, {covfunc}, u};')
+covfuncF = {@apxSparse, {covfunc}, u};
+disp('[mF s2F] = gp(hyp, @infGaussLik, meanfunc, covfuncF, likfunc, x, y, z);')
+[mF s2F] = gp(hyp, @infGaussLik, meanfunc, covfuncF, likfunc, x, y, z);
 
 figure(5)
 set(gca, 'FontSize', 24)

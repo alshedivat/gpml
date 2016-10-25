@@ -50,5 +50,5 @@
 %
 % See also doc/usagePrior.m, inf/infPrior.m.
 %
-% Copyright (c) by Carl Edward Rasmussen and Hannes Nickisch, 2015-07-13.
+% Copyright (c) by Carl Edward Rasmussen and Hannes Nickisch, 2016-10-19.
 %                                      File automatically generated using noweb.

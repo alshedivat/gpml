@@ -2,7 +2,7 @@
 %
 % See also likFunctions.m.
 %
-% Copyright (c) by Carl Edward Rasmussen and Hannes Nickisch, 2015-07-13.
+% Copyright (c) by Carl Edward Rasmussen and Hannes Nickisch, 2016-10-19.
 %                                      File automatically generated using noweb.
 clear all, close all
 n = 5; f = randn(n,1);       % create random latent function values
@@ -30,14 +30,16 @@ lr6 = {'likGumbel','+'}; hypr6 = log(sn);
 
 % set up Poisson regression
 yp = fix(abs(f)) + 1;
-lp0 = {@likPoisson,'logistic'}; hypp0 = [];
-lp1 = {@likPoisson,'exp'};      hypp1 = [];
+lp0 = {@likPoisson,'logistic'};        hypp0 = [];
+lp1 = {@likPoisson,{'logistic2',0.1}}; hypp1 = [];
+lp2 = {@likPoisson,'exp'};             hypp2 = [];
 
 % set up other GLM likelihoods for positive or interval regression
-lg1 = {@likGamma,'logistic'}; al = 2;    hyp.lik = log(al);
-lg2 = {@likInvGauss,'exp'};   lam = 1.1; hyp.lik = log(lam);
-lg3 = {@likBeta,'expexp'};    phi = 2.1; hyp.lik = log(phi);
-lg4 = {@likBeta,'logit'};     phi = 4.7; hyp.lik = log(phi);
+lg1 = {@likGamma,'logistic'};            al = 2;    hyp.lik = log(al);
+lg2 = {@likInvGauss,'exp'};              lam = 1.1; hyp.lik = log(lam);
+lg3 = {@likBeta,'expexp'};               phi = 2.1; hyp.lik = log(phi);
+lg4 = {@likBeta,'logit'};                phi = 4.7; hyp.lik = log(phi);
+lg5 = {@likWeibull,{'logistic2',0.01}};  ka = 0.5;  hyp.lik = log(ka);
 
 % 0) specify the likelihood function
 lik = lc0; hyp = hypc0; y = yc;

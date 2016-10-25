@@ -1,34 +1,32 @@
-function K = covLIN(hyp, x, z, i)
+function [K,dK] = covLIN(mode,hyp,x,z)
 
-% Linear covariance function. The covariance function is parameterized as:
+% Linear covariance function.
+% The covariance function is parameterized as:
 %
-% k(x^p,x^q) = x^p'*x^q
+% k(x,z) = dot(x,z)
 %
-% The are no hyperparameters:
+% where dot(x,z) is a dot product. The hyperparameters are:
 %
-% hyp = [ ]
+% hyp = [ hyp_maha ]
 %
-% Note that there is no bias or scale term; use covConst to add these.
+% Copyright (c) by Carl Edward Rasmussen and Hannes Nickisch, 2016-04-26.
 %
-% Copyright (c) by Carl Edward Rasmussen and Hannes Nickisch, 2010-09-10.
-%
-% See also COVFUNCTIONS.M.
+% See also covDot.m.
 
-if nargin<2, K = '0'; return; end                  % report number of parameters
-if nargin<3, z = []; end                                   % make sure, z exists
-xeqz = isempty(z); dg = strcmp(z,'diag');                       % determine mode
-
-% compute inner products
-if dg                                                               % vector kxx
-  K = sum(x.*x,2);
-else
-  if xeqz                                                 % symmetric matrix Kxx
-    K = x*x';
-  else                                                   % cross covariances Kxz
-    K = x*z';
-  end
+if nargin<1, mode = 'eye'; end, narg = nargin;                    % default mode
+if ~ischar(mode)                                     % compatible to old version
+  if nargin>2, z = x; end
+  if nargin>1, x = hyp; end
+  if nargin>0, hyp = mode; end
+  mode = 'eye'; narg = narg+1;
 end
+if narg<3, K = covDot(mode); return, end
+if narg<4, z = []; end                                     % make sure, z exists
 
-if nargin>3                                                        % derivatives
-  error('Unknown hyperparameter')
+k = @(s) s; dk = @(s) ones(size(s));
+
+if nargout > 1
+  [K,dK] = covDot(mode,k,dk,hyp,x,z);
+else
+  K = covDot(mode,k,dk,hyp,x,z);
 end

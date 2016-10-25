@@ -14,15 +14,15 @@ function [post, nlZ, dnlZ] = infVB(hyp, mean, cov, lik, x, y, opt)
 % The problem is convex whenever the likelihood is log-concave. At the end, the
 % optimal width W is obtained analytically.
 %
-% Copyright (c) by Hannes Nickisch 2014-03-20.
+% Copyright (c) by Hannes Nickisch 2016-05-02.
 %
 % See also INFMETHODS.M.
 
 n = size(x,1);
 if isnumeric(cov),  K = cov;                    % use provided covariance matrix
-else K = feval(cov{:},  hyp.cov,  x); end       % evaluate the covariance matrix
+else [K,dK] = feval(cov{:},  hyp.cov,  x); end     % covariance matrix and deriv
 if isnumeric(mean), m = mean;                         % use provided mean vector
-else m = feval(mean{:}, hyp.mean, x); end             % evaluate the mean vector
+else [m,dm] = feval(mean{:}, hyp.mean, x); end           % mean vector and deriv
 if iscell(lik), likstr = lik{1}; else likstr = lik; end
 if ~ischar(likstr), likstr = func2str(likstr); end
 
@@ -56,11 +56,7 @@ nlZ = sum(log(diag(post.L))) + (sum(h) + t'*t - (be.*be)'*ga )/2;   % var. bound
 if nargout>2                                           % do we want derivatives?
   iKtil = repmat(sW,1,n).*solve_chol(post.L,diag(sW));% sW*B^-1*sW=inv(K+inv(W))
   dnlZ = hyp;                                   % allocate space for derivatives
-  for j=1:length(hyp.cov)                                    % covariance hypers
-    dK = feval(cov{:}, hyp.cov, x, [], j);
-    if j==1, w = iKtil*(c.*ga); end
-    dnlZ.cov(j) = sum(sum(iKtil.*dK))/2 - (w'*dK*w)/2;
-  end
+  w = iKtil*(c.*ga); dnlZ.cov = dK(iKtil-w*w')/2;            % covariance hypers
   if ~strcmp(likstr,'likGauss')                              % likelihood hypers
     for j=1:length(hyp.lik)
       sign_fmz = 2*(f-z>=0)-1;                % strict sign mapping; sign(0) = 1
@@ -71,10 +67,7 @@ if nargout>2                                           % do we want derivatives?
   else                                 % special treatment for the Gaussian case
     dnlZ.lik = sum(sum( (post.L'\eye(n)).^2 )) - exp(2*hyp.lik)*(alpha'*alpha);
   end
-  for j=1:length(hyp.mean)                                         % mean hypers
-    dm = feval(mean{:}, hyp.mean, x, j);
-    dnlZ.mean(j) = -alpha'*dm;
-  end
+  dnlZ.mean = -dm(alpha);                                          % mean hypers
 end
 
 % Smoothed likelihood function; instead of p(y|f)=lik(..,f,..) compute

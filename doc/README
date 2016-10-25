@@ -1,7 +1,7 @@
- GAUSSIAN PROCESS REGRESSION AND CLASSIFICATION Toolbox version 3.6
+ GAUSSIAN PROCESS REGRESSION AND CLASSIFICATION Toolbox version 4.0
     for GNU Octave 3.2.x and Matlab 7.x
 
-Copyright (c) by Carl Edward Rasmussen and Hannes Nickisch, 2015-07-07.
+Copyright (c) by Carl Edward Rasmussen and Hannes Nickisch, 2016-10-19.
 
 
 
@@ -138,7 +138,7 @@ Thanks to Giampiero Salvi for posting the workaround.
 3) CURRENT VERSION
 ==================
 
-The current version of the programs is 3.6. Previous versions of the code are
+The current version of the programs is 4.0. Previous versions of the code are
 available at http://www.gaussianprocess.org/gpml/code/oldcode.html.
 
 
@@ -146,8 +146,57 @@ available at http://www.gaussianprocess.org/gpml/code/oldcode.html.
 4) DIFFERENCES TO PREVIOUS VERSIONS
 ===================================
 
+NEW in version 4.0, 2016-09-29
+------------------------------
+A major code restructuring effort did take place in the current release unifying
+certain inference functions and allowing more flexibility in covariance function
+composition. We also redesigned the whole derivative computation pipeline to
+strongly improve the overall runtime. We finally include grid-based covariance
+approximations natively.
+
+More generic sparse approximation using Power EP
+ - unified treatment of FITC approximation, variational approaches VFE and hybrids
+ - inducing input optimisation for all (compositions of) covariance functions dropping the previous limitation to a few standard examples
+ - infFITC is now covered by the more generic infGaussLik function
+
+Approximate covariance object unifying sparse approximations, grid-based approximations and exact covariance computations
+ - implementation in cov/apx, cov/apxGrid, cov/apxSparse
+ - generic infGaussLik unifies infExact,   infFITC         and infGrid
+ - generic infLaplace  unifies infLaplace, infFITC_Laplace and infGrid_Laplace
+
+Hiearchical structure of covariance functions
+ - clear hierachical compositional implementation
+ - no more code duplication as present in covSEiso and covSEard pairs
+ - two mother covariance functions
+    covDot  for dot-product-based covariances and
+    covMaha for Mahalanobis-distance-based covariances
+ - a variety of modifiers: eye, iso, ard, proj, fact, vlen
+ - more flexibility as more variants are available and possible
+ - all covariance functions offer derivatives w.r.t. inputs
+
+Faster derivative computations for mean and cov functions
+ - switched from partial derivatives to directional derivatives
+ - simpler and more concise interface of mean and cov functions
+ - much faster marginal likelihood derivative computations
+ - simpler and more compact code
+
+New mean functions
+ - new mean/meanWSPC (Weighted Sum of Projected Cosines or Random Kitchen Sink features) following a suggestion by William Herlands
+ - new mean/meanWarp for constructing a new mean from an existing one by means of a warping function adapted from William Herlands
+
+New optimizer
+ - added a new minimize_minfunc, contributed by Truong X. Nghiem
+
+New GLM link function
+ - added the logistic link function util/glm_invlink_logistic2
+
+Smaller fixes
+ - two-fold speedup of util/elsympol used by covADD by Truong X. Nghiem
+ - bugfix in util/logphi as reported by John Darby
+
 NEW in version 3.6, 2015-07-07
 ------------------------------
+- bugfix in likGaussWarp as reported by Obaid Malik
 - added a new inference function infGrid_Laplace allowing to use non-Gaussian likelihoods for large grids
 - fixed a bug due to Octave evaluating norm([]) to a tiny nonzero value, modified all lik/lik*.m functions reported by Philipp Richter
 - small bugfixes in covGrid and infGrid

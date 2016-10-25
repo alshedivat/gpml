@@ -24,7 +24,7 @@ function [varargout] = likWeibull(link, hyp, y, mu, s2, inf, i)
 %
 % See also LIKFUNCTIONS.M.
 %
-% Copyright (c) by Hannes Nickisch, 2013-10-30.
+% Copyright (c) by Hannes Nickisch, 2016-10-04.
 
 if nargin<4, varargout = {'1'}; return; end   % report number of hyperparameters
 
@@ -99,8 +99,10 @@ end
 % compute the log intensity using the inverse link function
 function varargout = g(f,link)
   varargout = cell(nargout, 1);  % allocate the right number of output arguments
-  if strcmp(link,'exp')
+  if isequal(link,'exp')
     [varargout{:}] = glm_invlink_exp(f);
-  else
+  elseif isequal(link,'logistic')
     [varargout{:}] = glm_invlink_logistic(f);
+  else
+    [varargout{:}] = glm_invlink_logistic2(link{2},f);
   end
