@@ -1,10 +1,13 @@
 function [post nlZ dnlZ] = infGaussLik(hyp, mean, cov, lik, x, y, opt)
 
-% Exact inference for a GP with Gaussian likelihood. Compute a parametrization
-% of the posterior, the negative log marginal likelihood and its derivatives
-% w.r.t. the hyperparameters. See also "help infMethods".
+% Exact inference for a GP with Gaussian likelihood.
 %
-% Copyright (c) by Carl Edward Rasmussen and Hannes Nickisch, 2016-10-19.
+% Compute a parametrization of the posterior, the negative log marginal
+% likelihood and its derivatives w.r.t. the hyperparameters. The function takes
+% a specified covariance function (see covFunctions.m) and likelihood function
+% (see likFunctions.m), and is designed to be used with gp.m.
+%
+% Copyright (c) by Carl Edward Rasmussen and Hannes Nickisch, 2017-11-28.
 %                                      File automatically generated using noweb.
 %
 % See also INFMETHODS.M, APX.M.

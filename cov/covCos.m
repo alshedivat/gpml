@@ -11,7 +11,7 @@ function [K,dK] = covCos(hyp, x, z)
 %
 % Note that covPeriodicNoDC converges to covCos as ell goes to infinity.
 %
-% Copyright (c) by James Robert Lloyd and Hannes Nickisch, 2016-04-24.
+% Copyright (c) by James Robert Lloyd and Hannes Nickisch, 2016-11-05.
 %
 % See also COVFUNCTIONS.M, COVPERIODICNODC.M.
 
@@ -20,7 +20,7 @@ if nargin<3, z = []; end                                   % make sure, z exists
 xeqz = isempty(z); dg = strcmp(z,'diag');                       % determine mode
 
 [n,D] = size(x);
-if D>1, error('Covariance is defined for 1d data only.'), end
+if D~=1, error('Covariance is defined for 1d data only.'), end
 p   = exp(hyp(1));
 sf2 = exp(2*hyp(2));
 

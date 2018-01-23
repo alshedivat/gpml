@@ -2,7 +2,7 @@
 %
 % See also likFunctions.m.
 %
-% Copyright (c) by Carl Edward Rasmussen and Hannes Nickisch, 2016-10-19.
+% Copyright (c) by Carl Edward Rasmussen and Hannes Nickisch, 2017-11-28.
 %                                      File automatically generated using noweb.
 clear all, close all
 n = 5; f = randn(n,1);       % create random latent function values
@@ -28,11 +28,12 @@ a = 1; % set up warped Gaussian with g(y) = y + a*sign(y).*y.^2
 lr5 = {'likGaussWarp',['poly2']}; hypr5 = log([a;sn]);
 lr6 = {'likGumbel','+'}; hypr6 = log(sn);
 
-% set up Poisson regression
+% set up Poisson/negative binomial regression
 yp = fix(abs(f)) + 1;
 lp0 = {@likPoisson,'logistic'};        hypp0 = [];
 lp1 = {@likPoisson,{'logistic2',0.1}}; hypp1 = [];
 lp2 = {@likPoisson,'exp'};             hypp2 = [];
+ln1 = {@likNegBinom,'logistic2'};      hypn1 = [];
 
 % set up other GLM likelihoods for positive or interval regression
 lg1 = {@likGamma,'logistic'};            al = 2;    hyp.lik = log(al);

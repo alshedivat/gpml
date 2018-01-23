@@ -127,8 +127,8 @@ function [K,Mx,xe] = apxGrid(cov, xg, hyp, x, z, b)
 %         inference from Gaussian data on large lattices, 2014.
 %
 % Given a grid covariance K, a grid xg, an interpolation matrix Mx and 
-% two vectors a and b, we can compute the directional derivative
-% d a'*Mx*K*Mx'*b / d hyp:
+% two sets of column vectors a and b, we can compute the directional derivative
+% d trace(a'*Mx*K*Mx'*b) / d hyp:
 %     dhyp = apxGrid('dirder',K,xg,Mx,a,b);                          => mode 10)
 %
 % Multiplication with a matrix/operator A along dimension dim of the tensor B.
@@ -147,7 +147,7 @@ function [K,Mx,xe] = apxGrid(cov, xg, hyp, x, z, b)
 %          ..
 %         hyp_p ],
 %
-% Copyright (c) by Hannes Nickisch and Andrew Wilson 2016-10-06.
+% Copyright (c) by Hannes Nickisch and Andrew Wilson 2017-01-07.
 %
 % See also COVFUNCTIONS.M, APX.M, INFLAPLACE.M, INFGAUSSLIK.M.
 
@@ -627,14 +627,17 @@ elseif s>0                                           % Whittle/Guinness aliasing
 end
 
 % mode 10 (dirder)
-% d a'*Mx*Kg*Mx'*b / d hyp
+% d trace(a'*Mx*Kg*Mx'*b) / d hyp
 function dhyp = dirder(Kg,xg,Mx,a,b)
-  p = numel(Kg.kron);                              % number of Kronecker factors
-  ng = [apxGrid('size',xg)',1];                                 % grid dimension
-  Mta  = Mx'*a; Mtb = Mx'*b; dhyp = [];                     % dhyp(i) = a'*dKi*b
+  a = reshape(a,size(Mx,1),[]);                       % turn into column vectors
+  if nargin<5, b = a; end                        % default input if b is missing
+  b = reshape(b,size(Mx,1),[]);                       % turn into column vectors
+  p = numel(Kg.kron); na = size(a,2);     % number of Kronecker factors, vectors
+  ng = [apxGrid('size',xg)',na];                                % grid dimension
+  Mta  = Mx'*a; Mtb = Mx'*b; dhyp = [];              % dhyp(i) = trace(a'*dKi*b)
   for i=1:p
-    sz = [prod(ng(1:i-1)),ng(i),prod(ng(i+1:p))]; % bring arrays in vector shape
-    shp = @(x) reshape(permute(reshape(x,sz),[2,1,3]),ng(i),[]);
+    sz = [prod(ng(1:i-1)),ng(i),prod(ng(i+1:p)),na]; % bring arrays in vec shape
+    shp = @(x) reshape(permute(reshape(x,sz),[2,1,3,4]),ng(i),[]);
     v = reshape(Mta,ng);
     for j=1:p, if i~=j, v = tmul(Kg.kron(j).factor,v,j); end, end
     if isnumeric(Kg.kron(i).factor)

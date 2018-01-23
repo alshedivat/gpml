@@ -11,18 +11,18 @@
 % opt = struct('s',0.0); and lik = @likGauss; in the following.
 %
 % The call
-%    [hyp,nlZ] = vfe_opt(hyp,mean,cov,x,y, z,nswap);
+%    [hyp,nlZ] = vfe_xu_opt(hyp,mean,cov,x,y, z,nswap);
 % changes the inducing inputs in hyp.xu as to minimise nlZ. At most nswap
 % swapping operations are performed between hyp.xu and the candidates in z.
 % At the end the negative marginal likelihood nlZ is the same as obtained by
 %     [post nlZ] = infGaussLik(hyp, mean, cov, lik, x, y, opt)
 % where opt = struct('s',0.0); and lik = @likGauss.
 %
-% Copyright (c) by Carl Edward Rasmussen and Hannes Nickisch 2016-10-14.
+% Copyright (c) by Carl Edward Rasmussen and Hannes Nickisch 2017-02-17.
 %
 % See also apx.m, infGaussLik.m.
 
-function [hyp,nlZ] = vfe_opt(hyp,mean,cov,x,y, z,nswap)
+function [hyp,nlZ] = vfe_xu_opt(hyp,mean,cov,x,y, z,nswap)
 
 nlZmin = inf; u = hyp.xu; cov = cov{2};
 for i=1:nswap

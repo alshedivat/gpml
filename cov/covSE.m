@@ -8,7 +8,7 @@ function varargout = covSE(mode, par, varargin)
 % where maha(x,z) is a squared Mahalanobis distance. The function takes a "mode"
 % parameter, which specifies precisely the Mahalanobis distance used, see
 % covMaha. The function returns either the number of hyperparameters (with less
-% than 3 input argments) or it returns a covariance matrix and (optionally) a
+% than 3 input arguments) or it returns a covariance matrix and (optionally) a
 % derivative function. 
 %
 % Copyright (c) by Carl Edward Rasmussen and Hannes Nickisch, 2016-05-23.

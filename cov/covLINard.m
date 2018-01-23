@@ -22,4 +22,4 @@ function varargout = covLINard(varargin)
 % See also covLin.m.
 
 varargout = cell(max(1,nargout),1);
-[varargout{:}] = covLIN('ard',varargin{:});
+[varargout{:}] = covLIN('ard',[],varargin{:});

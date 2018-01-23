@@ -23,7 +23,7 @@ function [K,dK] = covADD(cov, hyp, x, z)
 % Please see the paper "Additive Gaussian Processes" by Duvenaud, Nickisch and 
 % Rasmussen, NIPS, 2011 for details.
 %
-% Copyright (c) by Carl Edward Rasmussen and Hannes Nickisch, 2016-04-26.
+% Copyright (c) by Carl Edward Rasmussen and Hannes Nickisch, 2017-02-21.
 %                  multiple covariance support contributed by Truong X. Nghiem
 %
 % See also COVFUNCTIONS.M.
@@ -31,7 +31,7 @@ function [K,dK] = covADD(cov, hyp, x, z)
 R = fix(cov{1});                            % only positive integers are allowed
 if min(R)<1, error('only positive R up to D allowed'), end
 nr = numel(R);                      % number of different degrees of interaction
-nc = numel(cov)-1;                              % number of provided covariances
+nc = numel(cov)-1; D = 1;         % number of provided covariances, D for indiv.
 for j=1:nc, if ~iscell(cov{j+1}), cov{j+1} = {cov{j+1}}; end, end
 if nc==1, nh = eval(feval(cov{2}{:}));  % no of hypers per individual covariance
 else nh = zeros(nc,1); for j=1:nc, nh(j) = eval(feval(cov{j+1}{:})); end, end

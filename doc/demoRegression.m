@@ -1,5 +1,5 @@
 disp('See http://www.gaussianprocess.org/gpml/code/matlab/doc/ for details.')
-disp('Hit any key to continue...'); pause
+disp('Wait 10s, then continue...'); pause(10)
 
 disp(' '); disp('clear all, close all')
 clear all, close all
@@ -34,7 +34,7 @@ grid on
 xlabel('input, x')
 ylabel('output, y')
 if write_fig, print -depsc f1.eps; end
-disp(' '); disp('Hit any key to continue...'); pause
+disp(' '); disp('Wait 10s, then continue...'); pause(10)
 
 disp(' ')
 disp('nlml = gp(hyp, @infGaussLik, meanfunc, covfunc, likfunc, x, y)')
@@ -61,7 +61,7 @@ grid on
 xlabel('input, x')
 ylabel('output, y')
 if write_fig, print -depsc f2.eps; end
-disp(' '); disp('Hit any key to continue...'); pause
+disp(' '); disp('Wait 10s, then continue...'); pause(10)
 
 disp(' ')
 disp('covfunc = @covSEiso; hyp2.cov = [0; 0]; hyp2.lik = log(0.1);')
@@ -90,7 +90,7 @@ xlabel('input, x')
 ylabel('output, y')
 axis([-1.9 1.9 -0.9 3.9])
 if write_fig, print -depsc f3.eps; end
-disp(' '); disp('Hit any key to continue...'); pause
+disp(' '); disp('Wait 10s, then continue...'); pause(10)
 
 disp(' ')
 disp('hyp.cov = [0; 0]; hyp.mean = [0; 0]; hyp.lik = log(0.1);')
@@ -114,7 +114,7 @@ xlabel('input, x')
 ylabel('output, y')
 axis([-1.9 1.9 -0.9 3.9])
 if write_fig, print -depsc f4.eps; end
-disp(' '); disp('Hit any key to continue...'); pause
+disp(' '); disp('Wait 10s, then continue...'); pause(10)
 
 disp('large scale regression using the FITC approximation')
 disp('nu = fix(n/2); u = linspace(-1.3,1.3,nu)'';')

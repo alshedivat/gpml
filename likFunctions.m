@@ -12,6 +12,7 @@
 %   likT           (Student's t, regression)
 %
 %   likPoisson     (Poisson regression, count data)
+%   likNegBinom    (Negativ binomial regression, count data)
 %   likGamma       (Nonnegative regression, positive data)
 %   likExp         (Nonnegative regression, positive data)
 %   likInvGauss    (Nonnegative regression, positive data)
@@ -99,5 +100,5 @@
 % See the help for the individual likelihood for the computations specific to
 % each likelihood function.
 %
-% Copyright (c) by Carl Edward Rasmussen and Hannes Nickisch, 2016-10-19.
+% Copyright (c) by Carl Edward Rasmussen and Hannes Nickisch, 2017-11-28.
 %                                      File automatically generated using noweb.

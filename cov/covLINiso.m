@@ -13,9 +13,9 @@ function varargout = covLINiso(varargin)
 %
 % Note that there is no bias term; use covConst to add a bias.
 %
-% Copyright (c) by Carl Edward Rasmussen and Hannes Nickisch, 2016-04-26.
+% Copyright (c) by Carl Edward Rasmussen and Hannes Nickisch, 2017-09-26.
 %
 % See also covLin.m.
 
 varargout = cell(max(1,nargout),1);
-[varargout{:}] = covLIN('iso',varargin{:});
+[varargout{:}] = covLIN('iso',[],varargin{:});

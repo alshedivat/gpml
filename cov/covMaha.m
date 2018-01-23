@@ -5,20 +5,20 @@ function [K,dK,D2] = covMaha(mode, par, k, dk, hyp, x, z)
 %
 % k(x,z) = k(r^2), r^2 = maha(x,P,z) = (x-z)'*inv(P)*(x-z),
 %
-% where the matrix P is the metric. 
+% where the matrix P is the metric.
 %
 % Parameters:
 % 1) mode,par:
 % We offer different modes (mode) with their respective parameters (par):
-% mode =   par =   inv(P) =         hyp =  
+% mode =   par =   inv(P) =         hyp =
 %   'eye'    []      eye(D)           []
 %   'iso'    []      ell^2*eye(D)     [log(ell)]
 %   'ard'    []      diag(ell.^2)     [log(ell_1); ..; log(ell_D)]
 %   'proj'   d       L'*L             [L_11; L_21; ..; L_dD]
-%   'fact'   d       L'*L + diag(f)   [L_11; L_21; ..; L_dD; f_1; ..; f_D]
+%   'fact'   d       L'*L + diag(f)   [L_11; L_21; ..; L_dD; log(f_1); ..; log(f_D)]
 %   'vlen'   llen    l(x,z)^2*eye(D)  [hyp_llen]
 % In the last mode, the covariance function is turned into a nonstationary
-% covariance by a variable lengthscale l(x,z) = sqrt((len(x)^2+len(z)^2)/2), 
+% covariance by a variable lengthscale l(x,z) = sqrt((len(x)^2+len(z)^2)/2),
 % where len(x) = exp(llen(x)) and llen is provided as additional parameter
 % in the form of a GPML mean function cell array. The final expression for the
 % 'vlen' covariance is:
@@ -26,7 +26,7 @@ function [K,dK,D2] = covMaha(mode, par, k, dk, hyp, x, z)
 %
 % 2) k,dk:
 % The functional form of the covariance is governed by two functions:
-% k:  r^2        -> k(x,z), r^2 = maha(x,P,z) = (x-z)'*inv(P)*(x-z) 
+% k:  r^2        -> k(x,z), r^2 = maha(x,P,z) = (x-z)'*inv(P)*(x-z)
 % dk: r^2,k(x,z) -> d k(x,z) / d r2
 % For example, the squared exponential covariance uses
 %   k = @(r2) exp(-r2/2); dk = @(r2,k) (-1/2)*k;
@@ -42,7 +42,7 @@ function [K,dK,D2] = covMaha(mode, par, k, dk, hyp, x, z)
 %
 % For more help on design of covariance functions, try "help covFunctions".
 %
-% Copyright (c) by Carl Edward Rasmussen and Hannes Nickisch, 2016-05-04.
+% Copyright (c) by Carl Edward Rasmussen and Hannes Nickisch, 2017-01-11.
 %
 % See also COVFUNCTIONS.M.
 
@@ -92,8 +92,8 @@ if isequal(mode,'vlen')                         % evaluate variable lengthscales
   D2 = D2./L2; T = (P./L2).^(D/2);                   % non-stationary covariance
 end
 K = k(D2);                                                 % evaluate covariance
-if nargout > 1
-  dK = @(Q) dirder(Q,K,dk,T,D2,L2,dmaha,dAdhyp,mode,par,hyp,x,z,dg,xeqz);  % dir hyp deriv
+if nargout > 1                                          % directional derivative
+  dK = @(Q) dirder(Q,K,dk,T,D2,L2,dmaha,dAdhyp,mode,par,hyp,x,z,dg,xeqz);
 end
 if isequal(mode,'vlen'), K = K.*T; end
 
@@ -149,9 +149,7 @@ function [D2,dmaha] = maha(x,A,z)
     end                % remove numerical noise at the end and ensure that D2>=0
     D2 = max(bsxfun(@plus,sax,bsxfun(@minus,saz',2*x*Az')),0);     % computation
   end
-  if nargout>1
-    dmaha = @(Q) maha_dirder(Q,x,A,z);
-  end
+  if nargout>1, dmaha = @(Q) maha_dirder(Q,x,A,z); end
 
 function [dx,dAdiag,dAmvm] = maha_dirder(Q,x,A,z)       % directional derivative
   if nargin<3, z = []; end

@@ -2,7 +2,7 @@ function [varargout] = likNegBinom(link, hyp, y, mu, s2, inf, i)
 
 % likNegBinom - Negative binomial likelihood function for count data y.
 % The expression for the likelihood is 
-%   likNegBinom(f) = 1/Z * mu^y / (r+mu)^(r+y), Z = r^r*G(y+r)/(G(y+1)*G(r))
+%   likNegBinom(f) = 1/Z * mu^y / (r+mu)^(r+y), Z = G(y+1)*G(r)/(r^r*G(y+r))
 % with G(t)=gamma(t)=(t-1)!, mean=mu and variance=mu*(mu+r)/r, where r is the 
 % number of failures parameters, mu = g(f) is the negative binomial intensity,
 % f is a Gaussian process and y is the non-negative integer count data.
@@ -25,7 +25,7 @@ function [varargout] = likNegBinom(link, hyp, y, mu, s2, inf, i)
 %
 % See also LIKFUNCTIONS.M.
 %
-% Copyright (c) by Hannes Nickisch, 2016-10-04.
+% Copyright (c) by Hannes Nickisch, 2016-12-09.
 
 if nargin<4, varargout = {'1'}; return; end   % report number of hyperparameters
 if ~exist('psi'), mypsi = @digamma; else mypsi = @psi; end    % no psi in Octave

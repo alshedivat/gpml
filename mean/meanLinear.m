@@ -15,7 +15,7 @@ function [m,dm] = meanLinear(hyp, x)
 %
 % See also MEANFUNCTIONS.M.
 
-if nargin<2, m = 'D'; return; end             % report number of hyperparameters 
+if nargin<2, m = 'D'; return; end             % report number of hyperparameters
 [n,D] = size(x);
 if any(size(hyp)~=[D,1]), error('Exactly D hyperparameters needed.'), end
 m = x*hyp(:);                                                    % evaluate mean

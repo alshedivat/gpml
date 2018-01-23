@@ -44,13 +44,37 @@ function [varargout] = gp(hyp, inf, mean, cov, lik, x, y, xs, ys)
 %
 % See also infMethods.m, meanFunctions.m, covFunctions.m, likFunctions.m.
 %
-% Copyright (c) by Carl Edward Rasmussen and Hannes Nickisch, 2016-10-19.
+% Copyright (c) by Carl Edward Rasmussen and Hannes Nickisch, 2017-11-28.
 %                                      File automatically generated using noweb.
 if nargin<7 || nargin>9
   disp('Usage: [nlZ dnlZ          ] = gp(hyp, inf, mean, cov, lik, x, y);')
   disp('   or: [ymu ys2 fmu fs2   ] = gp(hyp, inf, mean, cov, lik, x, y, xs);')
   disp('   or: [ymu ys2 fmu fs2 lp] = gp(hyp, inf, mean, cov, lik, x, y, xs, ys);')
   return
+end
+
+if size(y,2)>1      % deal with (independent) multivariate output y by recursing
+  d = size(y,2); varargout = cell(nargout,1); out = cell(nargout,1);  % allocate
+  for i=1:d
+    in = {hyp, inf, mean, cov, lik, x, y(:,i)};
+    if nargin>7, in = {in{:}, xs}; end
+    if nargin>8, in = {in{:}, ys(:,i)}; end
+    if i==1, [varargout{:}] = gp(in{:});    % perform inference for dimension ..
+    else           [out{:}] = gp(in{:});             % .. number i in the output
+      if nargin==7, no = 2;
+        varargout{1} = varargout{1} + out{1};                          % sum nlZ
+        if nargout>1                                                  % sum dnlZ
+          varargout{2} = vec2any(hyp,any2vec(varargout{2})+any2vec(out{2}));
+        end
+      else no = 5;                              % concatenate ymu ys2 fmu fs2 lp
+        for j=1:min(nargout,no), varargout{j} = [varargout{j},out{j}]; end
+      end
+      if nargout>no                                           % concatenate post
+        if i==2, varargout{no+1} = {varargout{no+1},out{no+1}};
+        else varargout{no+1} = {varargout{no+1}{:},out{no+1}}; end
+      end  
+    end
+  end, return                                      % return to end the recursion
 end
 
 if isempty(mean), mean = {@meanZero}; end                     % set default mean
@@ -145,7 +169,7 @@ else
   while nact<ns               % process minibatches of test cases to save memory
     id = (nact+1):min(nact+nperbatch,ns);               % data points to process
     kss = feval(cov{:}, hyp.cov, xs(id,:), 'diag');              % self-variance
-    if strcmp(cstr,'covFITC') || strcmp(cstr,'covSparse')    % cross-covariances
+    if strcmp(cstr,'covFITC') || strcmp(cstr,'apxSparse')    % cross-covariances
       Ks = feval(cov{:}, hyp.cov, x, xs(id,:)); Ks = Ks(nz,:); % res indep. of x
     else
       Ks = feval(cov{:}, hyp.cov, x(nz,:), xs(id,:));        % avoid computation

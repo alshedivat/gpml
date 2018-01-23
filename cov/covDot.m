@@ -1,49 +1,82 @@
-function [K,dK,S] = covDot(mode, k, dk, hyp, x, z)
+function [K,dK,S] = covDot(mode, par, k, dk, hyp, x, z)
 
-% Mahalanobis distance-based covariance function. The covariance function is
+% Dot product-based covariance function. The covariance function is
 % parameterized as:
 %
-% k(x,z) = k(s), s = dot(x,z) = x'*inv(P)*z 
+% k(x,z) = k(s), s = dot(x,z) = x'*inv(P)*z
 %
-% where the P matrix is the metric. The hyperparameters are:
+% where the matrix P is the metric. 
 %
-% hyp = [ log(ell) ]
+% Parameters:
+% 1) mode,par:
+% We offer different modes (mode) with their respective parameters (par):
+% mode =   par =   inv(P) =         hyp =  
+%   'eye'    []      eye(D)           []
+%   'iso'    []      ell^2*eye(D)     [log(ell)]
+%   'ard'    []      diag(ell.^2)     [log(ell_1); ..; log(ell_D)]
+%   'proj'   d       L'*L             [L_11; L_21; ..; L_dD]
+%   'fact'   d       L'*L + diag(f)   [L_11; L_21; ..; L_dD; log(f_1); ..; log(f_D)]
 %
-% We offer three different modes:
-%   'eye':   inv(P) = eye(D);        hyp = [];
-%   'iso':   inv(P) = ell^2*eye(D);  hyp = [log(ell)];
-%   'ard':   inv(P) = diag(ell.^2);  hyp = [log(ell_1); ..; log(ell_D)];
+% 2) k,dk:
+% The functional form of the covariance is governed by two functions:
+% k:  s        -> k(x,z), s = dot(x,z) = x'*inv(P)*z
+% dk: s,k(x,z) -> d k(x,z) / d s
+% For example, the linear covariance uses
+%   k = @(s) (c+s).^d; dk = @(s) d*(c+s).^(d-1);
+% Note that not all functions k,dk give rise to a valid i.e. positive
+% semidefinite covariance function k(x,z).
+%
+% 3) hyp,x,z:
+% These input parameters follow the usual covariance function interface. For the
+% composition of hyp, see 1).
+%
+% 4) K,dK:
+% See the usual covariance function interface.
 %
 % For more help on design of covariance functions, try "help covFunctions".
 %
-% Note: dk(s) = d k / d s
-%
-% Copyright (c) by Carl Edward Rasmussen and Hannes Nickisch, 2016-04-27.
+% Copyright (c) by Carl Edward Rasmussen and Hannes Nickisch, 2017-09-26.
 %
 % See also COVFUNCTIONS.M.
 
-if nargin<1, mode = 'eye'; end                                   % default value
-if     isequal(mode,'ard'), ne = 'D';
-elseif isequal(mode,'iso'), ne = '1';
-elseif isequal(mode,'eye'), ne = '0';
-else error('Parameter mode is either ''eye'', ''iso'' or ''ard''.'), end
+if nargin<1, mode = 'eye'; end, if nargin <2, par = []; end     % default values
+mode_list = '''eye'', ''iso'', ''ard'', ''proj'', or ''fact''.';
+switch mode
+  case 'eye',  ne = '0';
+  case 'iso',  ne = '1';
+  case 'ard',  ne = 'D';
+  case 'proj', ne = [num2str(par),'*D'];
+  case 'fact', ne = [num2str(par),'*D+D'];
+  otherwise,   error('Parameter mode is either %s.',mode_list)
+end
 
-if nargin<5, K = ne; return; end                   % report number of parameters
-if nargin<6, z = []; end                                   % make sure, z exists
-xeqz = isempty(z); dg = strcmp(z,'diag');             % sort out different types
-[n,D] = size(x); ne = eval(ne);                                 % determine mode
+if nargin<6, K = ne; return; end                   % report number of parameters
+if nargin<7, z = []; end                                   % make sure, z exists
+xeqz = isempty(z); dg = strcmp(z,'diag');             % sort out different modes
+[n,D] = size(x); ne = eval(ne);                                     % dimensions
 hyp = hyp(:);                                 % make sure hyp is a column vector
+if numel(hyp)~=ne, error('Wrong number of hyperparameters'), end
 
-ell = exp(hyp(1:ne));                              % characteristic length scale
-if numel(ell)==0, ell = 1; end                                       % catch eye
-A = @(x) bsxfun(@times,x,1./ell(:)'.^2);              % mvm with metric A=inv(P)
+switch mode                                           % mvm with metric A=inv(P)
+  case 'eye',  A = @(x) x;
+               dAdhyp = @(T) zeros(0,1);
+  case 'iso',  iell2 = exp(-2*hyp); A = @(x) x*iell2;
+               dAdhyp = @(T) -2*iell2*trace(T);
+  case 'ard',  iell2 = exp(-2*hyp); A = @(x) bsxfun(@times,x,iell2'); 
+               dAdhyp = @(T) -2*iell2.*diag(T);
+  case 'proj', d = par; L = reshape(hyp,d,D); A = @(x) (x*L')*L;
+               dAdhyp = @(T) reshape(L*(T+T'),d*D,1);
+  case 'fact', d = par; L = reshape(hyp(1:d*D),d,D); f = exp(hyp(d*D+1:end));
+               A = @(x) (x*L')*L + bsxfun(@times,x,f');
+               dAdhyp = @(T)[reshape(L*(T+T'),d*D,1); f.*diag(T)];
+end
 
 % compute dot product
 if dg                                                               % vector sxx
-  Az = A(x); S = sum(x.*Az,2);
+  Az = A(x); z = x; S = sum(x.*Az,2);
 else
   if xeqz                                                 % symmetric matrix Sxx
-    Az = A(x);
+    Az = A(x); z = x;
   else                                                         % cross terms Sxz
     Az = A(z);
   end
@@ -51,21 +84,23 @@ else
 end
 K = k(S);                                                           % covariance
 if nargout > 1
-  dK = @(Q) dirder(Q,S,dk,x,Az,dg,xeqz,mode);             % dir hyper derivative
+  dK = @(Q) dirder(Q,S,dk,x,Az,z,dg,xeqz,dAdhyp,mode);    % dir hyper derivative
 end
 
-function [dhyp,dx] = dirder(Q,S,dk,x,Az,dg,xeqz,mode)
-  R = dk(S).*Q;
-  if isequal(mode,'ard')
-    if dg
-      dhyp = -2*sum(x.*bsxfun(@times,R,Az),1)';
-    else
-      dhyp = -2*sum(x.*(R*Az),1)';
-    end
-  elseif isequal(mode,'iso')
-    dhyp = -2*R(:)'*S(:);
-  else
-    dhyp = zeros(0,1);
+function [dhyp,dx] = dirder(Q,S,dk,x,Az,z,dg,xeqz,dAdhyp,mode)
+  R = dk(S).*Q; 
+  switch mode
+    case 'eye',  dhyp = zeros(0,1);                             % fast shortcuts
+    case 'iso',  dhyp = -2*R(:)'*S(:);
+    case 'ard'
+      if dg
+        dhyp = -2*sum(x.*bsxfun(@times,R,Az),1)';
+      else
+        dhyp = -2*sum(x.*(R*Az),1)';
+      end
+    otherwise                                              % generic computation
+      if dg, T = bsxfun(@times,R,z); else T = R*z; end, T = x'*T;
+      dhyp = dAdhyp(T);
   end
   if nargout > 1
     if xeqz, dx = R*Az+R'*Az; else dx = R*Az; end

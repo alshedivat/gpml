@@ -18,11 +18,12 @@
 %
 % The interface to the approximation methods is the following:
 %
-%   function [post nlZ dnlZ] = inf..(hyp, cov, lik, x, y)
+%   function [post nlZ dnlZ] = inf..(hyp, mean, cov, lik, x, y)
 %
 % where:
 %
 %   hyp      is a struct of hyperparameters
+%   mean     is the name of the mean function       (see meanFunctions.m)
 %   cov      is the name of the covariance function (see covFunctions.m)
 %   lik      is the name of the likelihood function (see likFunctions.m)
 %   x        is a n by D matrix of training inputs 
@@ -47,5 +48,5 @@
 % For more information on the individual approximation methods and their
 % implementations, see the separate inf??.m files. See also gp.m.
 %
-% Copyright (c) by Carl Edward Rasmussen and Hannes Nickisch, 2016-10-19.
+% Copyright (c) by Carl Edward Rasmussen and Hannes Nickisch, 2017-11-28.
 %                                      File automatically generated using noweb.

@@ -1,13 +1,15 @@
-function [post nlZ dnlZ] = infLaplace(hyp, mean, cov, lik, x, y, opt)
+function [post nlZ dnlZ alpha] = infLaplace(hyp, mean, cov, lik, x, y, opt)
 
 % Laplace approximation to the posterior Gaussian process.
-% The function takes a specified covariance function (see covFunctions.m) and
-% likelihood function (see likFunctions.m), and is designed to be used with
-% gp.m. See also infMethods.m.
 %
-% Copyright (c) by Carl Edward Rasmussen and Hannes Nickisch 2016-08-22.
+% Compute a parametrization of the posterior, the negative log marginal
+% likelihood and its derivatives w.r.t. the hyperparameters. The function takes
+% a specified covariance function (see covFunctions.m) and likelihood function
+% (see likFunctions.m), and is designed to be used with gp.m.
 %
-% See also INFMETHODS.M.
+% Copyright (c) by Carl Edward Rasmussen and Hannes Nickisch 2016-10-21.
+%
+% See also INFMETHODS.M, GP.M.
 
 persistent last_alpha                                   % copy of the last alpha
 if any(isnan(last_alpha)), last_alpha = zeros(size(last_alpha)); end   % prevent
@@ -15,7 +17,8 @@ if nargin<=6, opt = []; end                        % make opt variable available
 
 inf = 'infLaplace';
 n = size(x,1);
-K = apx(hyp,cov,x,opt);                        % set up covariance approximation
+if isstruct(cov), K = cov;                   % use provided covariance structure
+else K = apx(hyp,cov,x,opt); end               % set up covariance approximation
 if isnumeric(mean), m = mean;                         % use provided mean vector
 else [m,dm] = feval(mean{:}, hyp.mean, x); end           % mean vector and deriv
 likfun = @(f) feval(lik{:},hyp.lik,y,f,[],inf);        % log likelihood function

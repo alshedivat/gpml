@@ -6,10 +6,17 @@ function [K,dK] = covMask(cov, hyp, x, z)
 % This function doesn't actually compute very much on its own, it merely does
 % some bookkeeping, and calls another covariance function to do the actual work.
 %
+% The function computes:
+%   k(x,z) = k0(x(mask),z(mask))
+% Example:
+%   k0  = {@covSEiso};
+%   msk = [1,3,7];
+%   k = {@covMask,{msk,k0{:}}};
+%
 % The function was suggested by Iain Murray, 2010-02-18 and is based on an
 % earlier implementation of his dating back to 2009-06-16.
 %
-% Copyright (c) by Carl Edward Rasmussen and Hannes Nickisch, 2016-04-17.
+% Copyright (c) by Carl Edward Rasmussen and Hannes Nickisch, 2016-11-14.
 %
 % See also COVFUNCTIONS.M.
 

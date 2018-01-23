@@ -31,15 +31,17 @@ function [post nlZ dnlZ] = infPrior(inf, prior, hyp, varargin)
 %     covariance function hyperparameter
 %     i.e. exp(hyp.cov(2)) ~ Weibull(lam,k)
 %
-% Return a parametrization of the posterior, the negative log marginal
-% likelihood and its derivatives w.r.t. the hyperparameters.
+% Compute a parametrization of the posterior, the negative log marginal
+% likelihood and its derivatives w.r.t. the hyperparameters. The function takes
+% a specified covariance function (see covFunctions.m) and likelihood function
+% (see likFunctions.m), and is designed to be used with gp.m.
 %
 % Note that at most 1 prior is allowed per hyperparameter. We consider the
 % specification of more than 1 prior for a hyperparameter as an error.
 %
 % For more help on design of priors, try "help priorDistributions".
 %
-% Copyright (c) by Hannes Nickisch and Roman Garnett, 2016-09-29.
+% Copyright (c) by Hannes Nickisch and Roman Garnett, 2016-10-26.
 %
 % See also INFMETHODS.M, USAGEPRIOR.M, PRIORDISTRIBUTIONS.M.
 
@@ -66,11 +68,13 @@ if ~isempty(prior)                % add hyperprior contributions to nlZ and dnlZ
           else
             idxz = zeros(size(num)); idxz(idx) = 1; idx = idxz>0; % binary index
           end
-          if sum(idx)<=1, error('multivariate priors need >1 hyperparam'), end
+          if sum(idx)<=1, error('multivariate priors need >1 hyperparams'), end
           num(idx) = num(idx)+1;                             % inc prior counter
           hypu = any2vec(hyp); dnlZ = any2vec(dnlZ);
-          if strncmp(pjstr,'priorClamped',12) || ...  % clamp derivative to zero
-             strncmp(pjstr,'priorDelta',10), dnlZ(idx) = 0;
+          if     strncmp(pjstr,'priorClamped',12) || ...   % clamp deriv to zero
+                 strncmp(pjstr,'priorDelta',10), dnlZ(idx) = 0;
+          elseif strncmp(pjstr,'priorEqual',10)   || ...       % have same deriv
+                 strncmp(pjstr,'priorSame',9),   dnlZ(idx) = sum(dnlZ(idx));
           else
             [lp,dlp] = feval(pj{:}, hypu(idx));    % evaluate prior distribution
             nlZ = nlZ-lp; dnlZ(idx) = dnlZ(idx)-dlp(:);    % update nlZ and dnlZ

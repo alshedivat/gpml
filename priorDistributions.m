@@ -26,6 +26,9 @@
 %   priorClampedMulti or - fix hyperparameter to its current value by setting
 %   priorDeltaMulti     derivatives to zero, no effect on marginal likelihood
 %
+%   priorEqualMulti or   - make several hyperparameters have the same value by
+%   priorSameMulti      same derivative, no effect on marginal likelihood
+%
 % composite prior distributions (see explanation at the bottom):
 %
 %   priorMix             - nonnegative mixture of priors
@@ -50,5 +53,5 @@
 %
 % See also doc/usagePrior.m, inf/infPrior.m.
 %
-% Copyright (c) by Carl Edward Rasmussen and Hannes Nickisch, 2016-10-19.
+% Copyright (c) by Carl Edward Rasmussen and Hannes Nickisch, 2017-11-28.
 %                                      File automatically generated using noweb.

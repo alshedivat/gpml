@@ -30,14 +30,35 @@ function K = apx(hyp,cov,x,opt)
 %    1 means linear interpolation, and 3 uses a cubic.
 %    For non-equispaced axes, only linear interpolation with inverse distance
 %    weighting is offered and opt.deg is ignored.
-%  opt.ldB2_cheby = true employs Monte-Carlo trace estimation aka the Hutchinson
-%    method and Chebyshev polynomials to approximate the term log(det(B))/2
-%    stochastically, see [7]. The following four parameters configure different
-%    aspects of the estimator and are only valid if opt.ldB2_cheby equals true.
-%  opt.ldB2_cheby_hutch,  default is 10, number of samples for the trace estim
-%  opt.ldB2_cheby_degree, default is 15, degree of Chebyshev approx polynomial
-%  opt.ldB2_cheby_maxit,  default is 50, max # of MVMs to estimate max(eig(B))
-%  opt.ldB2_cheby_seed,   default is [], random seed for the stoch trace estim
+%
+%  opt.ldB2_method string indicating the possible modes (details below)
+%      - 'scale' => (i)   scaled eigenvalue approach followed by Fiedler bound
+%      - 'cheby' => (ii)  stochastic estimation using Chebyshev polynomials
+%      - 'lancz' => (iii) stochastic estimation using Lanczos iterations
+%  (i)   'scale'   the default method simply uses the eigenvalues of the
+%         covariance matrix of the complete grid and rescales the values by the
+%         ratio of number grid points N and number data points n; in case of
+%         non-Gaussian inference i.e. W not being isotropic, we apply and
+%         additional bounding step (Fiedler)
+%  (ii)  'cheby'  employs Monte-Carlo trace estimation aka the Hutchinson method
+%         and Chebyshev polynomials to approximate the term log(det(B))/2
+%         stochastically, see [7]. The following parameters configure different
+%         aspects of the estimator and are only valid if opt.ldB2_method='cheby'
+%    opt.ldB2_hutch,        default is 10, number of samples for the trace estim
+%    opt.ldB2_cheby_degree, default is 15, degree of Chebyshev approx polynomial
+%    opt.ldB2_maxit,        default is 50, max # of MVMs to estimate max(eig(B))
+%    opt.ldB2_seed,         default is [], random seed for the stoch trace estim
+%  (iii) 'lancz' employs Monte-Carlo trace estimation aka the Hutchinson method
+%         and Lanczos iterations with full Gram-Schmidt to approximate the
+%         term log(det(B))/2 stochastically.
+%        'lancz-arpack' is the same as above only that the ARPACK reverse
+%         communication interface is used and partial orthogonalisation is used.
+%         The following parameters configure different aspects of the estimator
+%         and are only valid if opt.ldB2_method = 'lancz*'
+%    opt.ldB2_hutch,        default is 10, number of samples for the trace estim
+%    opt.ldB2_maxit,        default is 50, max # of MVMs per Lanczos run
+%    opt.ldB2_seed,         default is [], random seed for the stoch trace estim
+%
 %  opt.stat = true returns a little bit of output summarising the exploited
 %    structure of the covariance of the grid.
 %    The log-determinant approximation employs Fiedler's 1971 inequality and a
@@ -52,7 +73,7 @@ function K = apx(hyp,cov,x,opt)
 %    post.alpha = K.P(solveKiW(f-m))
 %    post.L = L = @(r) -K.P(solveKiW(K.Pt(r)))
 % 3) Linear algebra functions depending on W
-%    [ldB2,solveKiW,dW,dldB2,L] = K.fun(W)
+%    [ldB2,solveKiW,dW,dldB2,L,triB] = K.fun(W)
 %   a) Log-determinant (approximation), called f in the sequel
 %      ldB2 = log(det(B))/2
 %   b) Solution of linear systems
@@ -67,18 +88,21 @@ function K = apx(hyp,cov,x,opt)
 %   e) Matrix (operator) to compute the predictive variance
 %      L = -K.P(solveKiW(K.Pt(r))) either as a dense matrix or function.
 %      See gp.m for details on post.L.
+%   f) triB = trace(inv(B))
+%
 % [1] Seeger, GPs for Machine Learning, sect. 4, TR, 2004.
 % [2] Jylanki, Vanhatalo & Vehtari, Robust GPR with a Student's-t
 %     Likelihood, JMLR, 2011.
 % [3] Bui, Yan & Turner, A Unifying Framework for Sparse GP Approximation
-%     using Power EP, 2016, https://arxiv.org/abs/1605.07066.
+%     using Power EP, 2016, https://arxiv.org/abs/1605.07066
 % [4] Snelson & Ghahramani, Sparse GPs using pseudo-inputs, NIPS, 2006.
 % [5] Titsias, Var. Learning of Inducing Variables in Sparse GPs, AISTATS, 2009
 % [6] Wilson & Nickisch, Kernel Interp. for Scalable Structured GPs, ICML, 2015
 % [7] Han, Malioutov & Shin,  Large-scale Log-det Computation through Stochastic
 %     Chebyshev Expansions, ICML, 2015.
 %
-% Copyright (c) by Carl Edward Rasmussen and Hannes Nickisch 2016-10-05.
+% Copyright (c) by Carl Edward Rasmussen, Kun Dong, Insu Han and
+%                                                    Hannes Nickisch 2017-05-05.
 %
 % See also apxSparse.m, apxGrid.m, gp.m.
 
@@ -94,24 +118,27 @@ if exact                   % A) Exact computations using dense matrix operations
   else
     [K,dK] = feval(cov{:},hyp.cov,x);     % covariance matrix and dir derivative
   end
-  K = struct('mvm',@(x)K*x, 'fun',@(W)ldB2_exact(W,K,dK), ...      % mvm and fun
-              'P',@(x)x, 'Pt',@(x)x);                    % projection operations
+  K = struct('mvm',@(x)mvmK_exact(K,x), 'P',@(x)x, 'Pt',@(x)x,... % mvm and proj 
+             'fun',@(W)ldB2_exact(W,K,dK));
 
 elseif sparse                                         % B) Sparse approximations
   if isfield(opt,'s'), s = opt.s; else s = 1.0; end            % default is FITC
-  if isfield(hyp,'xu'), cov{3} = hyp.xu; end   % hyp.xu provided, replace cov{3}
+  xud = isfield(hyp,'xu');      % flag deciding whether to compute hyp.xu derivs
+  if xud, cov{3} = hyp.xu; end                 % hyp.xu provided, replace cov{3}
   xu = cov{3}; nu = size(xu,1);                        % extract inducing points
   [Kuu,   dKuu]   = feval(cov{2}{:}, hyp.cov, xu);     % get the building blocks
   [Ku,    dKu]    = feval(cov{2}{:}, hyp.cov, xu, x);
   [diagK, ddiagK] = feval(cov{2}{:}, hyp.cov, x, 'diag');
-  snu2 = 1e-6*(trace(Kuu)/nu);                 % stabilise by 0.1% of signal std
-  Luu  = chol(Kuu+snu2*eye(nu));                       % Kuu + snu2*I = Luu'*Luu
+  snud = isfield(hyp,'snu');   % flag deciding whether to compute hyp.snu derivs
+  if snud, snu2 = exp(2*hyp.snu);                     % hyp.snu already provided
+  else snu2 = 1e-6*(trace(Kuu)/nu);            % stabilise by 0.1% of signal std
+  end
+  Luu  = chol(Kuu+diag(snu2.*ones(nu,1)));         % Kuu + diag(snu2) = Luu'*Luu
   V  = Luu'\Ku;                                   % V = inv(Luu')*Ku => V'*V = Q
   g = max(diagK-sum(V.*V,1)',0);                         % g = diag(K) - diag(Q)
   K.mvm = @(x) V'*(V*x) + bsxfun(@times,s*g,x);   % efficient matrix-vector mult
   K.P = @(x) Luu\(V*x); K.Pt = @(x) V'*(Luu'\x);         % projection operations
-  xud = isfield(hyp,'xu');      % flag deciding whether to compute hyp.xu derivs
-  K.fun = @(W) ldB2_sparse(W,V,g,Luu,dKuu,dKu,ddiagK,s,xud);
+  K.fun = @(W) ldB2_sparse(W,V,g,Luu,dKuu,dKu,ddiagK,s,xud,snud,snu2);
 
 elseif grid                                            % C)  Grid approximations
   n = size(x,1);
@@ -122,23 +149,31 @@ elseif grid                                            % C)  Grid approximations
   if isfield(opt,'deg'), deg = opt.deg; else deg = 3; end     % interpol. degree
   if isfield(opt,'stat'), stat = opt.stat; else stat = false; end    % show stat
   cgpar = {cgtol,cgmit}; xg = cov{3}; p = numel(xg);  % conjugate gradient, grid
-  if isfield(opt,'ldB2_cheby'),cheby=opt.ldB2_cheby; else cheby=false; end
-  if isfield(opt,'ldB2_cheby_hutch'),m=opt.ldB2_cheby_hutch; else m=10; end
-  if isfield(opt,'ldB2_cheby_degree'),d=opt.ldB2_cheby_degree; else d=15; end
-  if isfield(opt,'ldB2_cheby_maxit'),mit=opt.ldB2_cheby_maxit; else mit=50; end
-  if isfield(opt,'ldB2_cheby_seed'),sd=opt.ldB2_cheby_seed; else sd=[]; end
-  ldpar = {cheby,m,d,mit,sd};                                % logdet parameters
+  if isfield(opt,'ldB2_method'), meth=opt.ldB2_method; else meth='scale'; end
+  m = 10; d = 15; mit = 50; sd = [];                    % set default parameters
+  if strncmpi(meth,'cheby',5) || strncmpi(meth,'lancz',5)
+    if isfield(opt,'ldB2_hutch'),        m =   opt.ldB2_hutch;     end
+    if isfield(opt,'ldB2_cheby_degree'), d =   opt.ldB2_cheby_degree;    end
+    if isfield(opt,'ldB2_maxit'),        mit = opt.ldB2_maxit;     end
+    if isfield(opt,'ldB2_seed'),         sd =  opt.ldB2_seed;      end
+    if stat
+      fprintf('Stochastic (%s) logdet estimation (%d,%d,[d=%d])\n',meth,m,mit,d)
+    end
+  else
+    if stat, fprintf('Scaled eigval logdet estimation\n'); end
+  end
+  ldpar = {meth,m,d,mit,[],sd};                              % logdet parameters
   [Kg,Mx] = feval(cov{:},hyp.cov,x,[],deg);  % grid cov structure, interp matrix
   if stat    % show some information about the nature of the p Kronecker factors
     fprintf(apxGrid('info',Kg,Mx,xg,deg));
   end
   K.mvm = @(x) Mx*Kg.mvm(Mx'*x);                    % mvm with covariance matrix
   K.P = @(x)x; K.Pt = @(x)x;                             % projection operations
-  K.fun = @(W) ldB2_grid(W,K,Kg,xg,Mx,cgpar,ldpar);
+  K.fun = @(W) ldB2_grid(W,K,Kg,xg,Mx,cgpar,ldpar); K.Mx = Mx;
 end
 
 %% A) Exact computations using dense matrix operations =========================
-function [ldB2,solveKiW,dW,dldB2,L] = ldB2_exact(W,K,dK)
+function [ldB2,solveKiW,dW,dldB2,L,triB] = ldB2_exact(W,K,dK)
   isWneg = any(W<0); n = numel(W);
   if isWneg                  % switch between Cholesky and LU decomposition mode
     A = eye(n) + bsxfun(@times,K,W');                     % asymmetric A = I+K*W
@@ -164,17 +199,25 @@ function [ldB2,solveKiW,dW,dldB2,L] = ldB2_exact(W,K,dK)
   end
   if nargout>2
     dW = sum(Q.*K,2)/2;            % d log(det(B))/2 / d W = diag(inv(inv(K)+W))
+    triB = trace(Q);                                      % triB = trace(inv(B))
     dldB2 = @(varargin) ldB2_deriv_exact(W,dK,Q, varargin{:});     % derivatives
   end
 
 function dhyp = ldB2_deriv_exact(W,dK,Q, alpha,a,b)
   if nargin>3, R = alpha*alpha'; else R = 0; end
   if nargin>5, R = R + 2*a*b'; end
-  dhyp.cov = dK( bsxfun(@times,Q,W) - R )/2;  
+  dhyp.cov = dK( bsxfun(@times,Q,W) - R )/2;
 
+function z = mvmK_exact(K,x)
+  if size(x,2)==size(x,1) && max(max( abs(x-eye(size(x))) ))<eps      % x=eye(n)
+    z = K;                             % avoid O(n^3) operation as it is trivial
+  else
+    z = K*x;
+  end
 
 %% B) Sparse approximations ====================================================
-function [ldB2,solveKiW,dW,dldB2,L]=ldB2_sparse(W,V,g,Luu,dKuu,dKu,ddiagK,s,xud)
+function [ldB2,solveKiW,dW,dldB2,L,triB] = ldB2_sparse(W,V,g,Luu,...
+                                                dKuu,dKu,ddiagK,s,xud,snud,snu2)
   z = s*g.*W; t = 1/s*log(z+1); i = z<1e-4;  % s=0: t = g*W, s=1: t = log(g*W+1)
   t(i) = g(i).*W(i).*(1-z(i)/2+z(i).^2/3);         % 2nd order Taylor for tiny z
   dt = 1./(z+1); d = W.*dt;                               % evaluate derivatives
@@ -185,26 +228,34 @@ function [ldB2,solveKiW,dW,dldB2,L]=ldB2_sparse(W,V,g,Luu,dKuu,dKu,ddiagK,s,xud)
   if nargout>2                % dW = d log(det(B))/2 / d W = diag(inv(inv(K)+W))
     dW = sum(LuV.*((LuV*Vd')*V),1)' + s*g.*d.*sum(LuV.*LuV,1)';
     dW = dt.*(g+sum(V.*V,1)'-dW)/2;                % add trace "correction" term
-    dldB2 = @(varargin) ldB2_deriv_sparse(V,Luu,d,LuV,dKuu,dKu,ddiagK,s,xud,...
-                                                                   varargin{:});
+    dldB2 = @(varargin) ldB2_deriv_sparse(V,Luu,d,LuV,dKuu,dKu,ddiagK,s,...
+                                                     xud,snud,snu2,varargin{:});
     if nargout>4
       L = solve_chol(Lu*Luu,eye(nu))-solve_chol(Luu,eye(nu));   % Sigma-inv(Kuu)
     end
+    if nargout>5
+      r = 1./(z+1); R = (eye(nu) + V*bsxfun(@times,V',r.*W))\V;
+      triB = r'*(1-W.*sum(V.*R)'.*r);
+    end
   end
 
-function dhyp = ldB2_deriv_sparse(V,Luu,d,LuV,dKuu,dKu,ddiagK,s,xud,alpha,a,b)
+function dhyp = ldB2_deriv_sparse(V,Luu,d,LuV,dKuu,dKu,ddiagK,s,...
+                                                        xud,snud,snu2,alpha,a,b)
   % K + 1./W = V'*V + inv(D), D = diag(d)
   % Q = inv(K+inv(W)) = inv(V'*V + diag(1./d)) = diag(d) - LuVd'*LuVd;
   LuVd = bsxfun(@times,LuV,d'); diagQ = d - sum(LuVd.*LuVd,1)';
   F = Luu\V; Qu = bsxfun(@times,F,d') - (F*LuVd')*LuVd;
-  if nargin>9, diagQ = diagQ-alpha.*alpha; Qu = Qu-(F*alpha)*alpha'; end
+  if nargin>11, diagQ = diagQ-alpha.*alpha; Qu = Qu-(F*alpha)*alpha'; end
   Quu = Qu*F';
-  if nargin>11
+  if nargin>13
     diagQ = diagQ-2*a.*b; Qu = Qu-(F*a)*b'-(F*b)*a'; Quu = Quu-2*(F*a)*(F*b)';
   end
   diagQ = s*diagQ + (1-s)*d;                          % take care of s parameter
   Qu = Qu - bsxfun(@times,F,diagQ'); Quu = Quu - bsxfun(@times,F,diagQ')*F';
-  nu = size(Quu,1); Quu = Quu + 1e-6*trace(Quu)/nu*eye(nu);
+  if snud                                    % compute inducing noise derivative
+    dhyp.snu = -diag(Quu).*snu2; if numel(snu2)==1, dhyp.snu=sum(dhyp.snu); end
+  else nu = size(Quu,1); Quu = Quu + 1e-6*trace(Quu)/nu*eye(nu);   % fixed noise
+  end
   if xud
     dhyp.cov = ddiagK(diagQ)/2; dhyp.xu = 0;
     [dc,dx] = dKu(Qu);   dhyp.cov = dhyp.cov + dc;   dhyp.xu = dhyp.xu + dx;
@@ -215,7 +266,7 @@ function dhyp = ldB2_deriv_sparse(V,Luu,d,LuV,dKuu,dKu,ddiagK,s,xud,alpha,a,b)
 
 
 %% C)  Grid approximations =====================================================
-function [ldB2,solveKiW,dW,dldB2,L] = ldB2_grid(W,K,Kg,xg,Mx,cgpar,ldpar)
+function [ldB2,solveKiW,dW,dldB2,L,triB] = ldB2_grid(W,K,Kg,xg,Mx,cgpar,ldpar)
   if all(W>=0)                                 % well-conditioned symmetric case
     sW = sqrt(W); msW = @(x) bsxfun(@times,sW,x);
     mvmB = @(x) msW(K.mvm(msW(x)))+x;
@@ -225,12 +276,24 @@ function [ldB2,solveKiW,dW,dldB2,L] = ldB2_grid(W,K,Kg,xg,Mx,cgpar,ldpar)
     solveKiW = @(r) linsolve(r,mvmKiW,cgpar{:});
   end                                                   % K*v = Mx*Kg.mvm(Mx'*v)
   dhyp.cov = [];                                                          % init
-  if ldpar{1}                 % stochastic estimation of logdet cheby/hutchinson
+  if strncmpi(ldpar{1},'cheby',5)    % stochastic estim: logdet cheby/hutchinson
     dK = @(a,b) apxGrid('dirder',Kg,xg,Mx,a,b);
     if nargout<3            % save some computation depending on required output
-      ldB2 = logdet_sample(W,K.mvm,dK, ldpar{2:end});
+      ldB2 = ldB2_cheby(W,K.mvm,dK, ldpar{2:end});
     else
-      [ldB2,emax,dhyp.cov,dW] = logdet_sample(W,K.mvm,dK, ldpar{2:end});
+      [ldB2,dhyp.cov,dW] = ldB2_cheby(W,K.mvm,dK, ldpar{2:end});
+    end
+  elseif strncmpi(ldpar{1},'lancz',5)% stochastic estim: logdet lancz/hutchinson
+    % the sign of the maxit parameter encodes whether ARPACK is used or not
+    mv = ver('matlab');     % get Matlab version, ARPACK interface not in Octave
+    if numel(strfind(ldpar{1},'arpack'))==0 || numel(mv)==0
+      ldpar{4} = -abs(ldpar{4});
+    end
+    dK = @(a,b) apxGrid('dirder',Kg,xg,Mx,a,b);
+    if nargout<3            % save some computation depending on required output
+      ldB2 = ldB2_lanczos(W,K.mvm,dK, ldpar{[2,4,6]});
+    else    
+      [ldB2,dhyp.cov,dW] = ldB2_lanczos(W,K.mvm,dK, ldpar{[2,4,6]});
     end
   else
     s = 3;                                    % Whittle embedding overlap factor
@@ -242,6 +305,7 @@ function [ldB2,solveKiW,dW,dldB2,L] = ldB2_grid(W,K,Kg,xg,Mx,cgpar,ldpar)
   dldB2 = @(varargin) ldB2_deriv_grid(dhyp, Kg,xg,Mx, varargin{:});
   if ~isreal(ldB2), error('Too many negative W detected.'), end
   L = @(r) -K.P(solveKiW(K.Pt(r)));
+  if nargout>5, error('triB not implemented'), end
 
 function dhyp = ldB2_deriv_grid_fiedler(Kg,xg,V,ee,de,s)
   p = numel(Kg.kron);                              % number of Kronecker factors
@@ -328,32 +392,56 @@ function [ub,dE,dW,ie,iw] = logdet_fiedler(E,W)
 %                                           T[i+1](x)=2*x*T[i](x)-T[i-1](x).
 % dT[0](x)=0, dT[1](x)=1, dT[i+1](x)=2*T[i](x)+2*x*dT[i](x)-dT[i-1](x)
 %
-% W       is the precision matrix
-% K(z)    yields mvm K*z
-% dK(y,z) yields d y'*K*z / d theta
+% W      is the (diagonal) precision matrix represented by an nx1 vector
+% K      is a function so that K(z) gives the mvm K*z
+% dK     is a function so that dK(u,v) yields d trace(u'*K*v) / d hyp (dmvm = 2)
+%                  or  so that dK(u)   yields d K*u / d hyp           (dmvm = 1)
 %
-% Copyright (c) by Insu Han and Hannes Nickisch 2016-09-27.
-function [ldB2,emax,dhyp,dW] = logdet_sample(W,K,dK, m,d, maxit,emax,seed)
-  sW = sqrt(W); n = numel(W); emin = 1;          % size and min eigenvalue bound
+% m      is the number of random probe vectors, default values is 10
+% d      is the degree of the polynomial, default value is 15
+%
+% maxit  is the maximum number of iterations for the largest eigenvalue,
+%                                                            default value is 50
+% emax   is the maximum eigenvalue (in case it is known)
+%
+% seed   is the seed for generating the random probe vectors
+% dmvm   indicates derivative type, default is 2
+%
+% Copyright (c) by Insu Han and Hannes Nickisch 2017-02-24.
+
+function [ldB2,dhyp,dW] = ldB2_cheby(W,K,dK, m,d, maxit,emax, seed,dmvm)
+  sW = sqrt(W); n = numel(W);
   B = @(x) x + bsxfun(@times,sW, K(bsxfun(@times,sW,x) ));%B=I+sqrt(W)*K*sqrt(W)
-  if nargin<6, maxit = 50; end
-  if nargin<7 || numel(emax)~=1                % evaluate upper eigenvalue bound
+  if nargin<6, maxit = 50; end, if nargin<9, dmvm = 2; end        % set defaults
+  if nargin<5, d = 15; end, if nargin<4, m = 10; end
+  emaxconst = ~(nargin<7 || numel(emax)~=1);   % given as a constant => no deriv
+  if ~emaxconst                                % evaluate upper eigenvalue bound
     if n==1, emax = B(1); else
       opt.maxit = maxit;   % number of iterations to estimate the largest eigval
       opt.issym = 1; opt.isreal = 1; % K is real symmetric and - of course - psd
       cstr = 'eigs(B,n,1,''lm'',opt)';              % compute largest eigenvalue
-      if exist('evalc'), [txt,emax] = evalc(cstr); else emax = eval(cstr); end
+      if exist('evalc'), [txt,vmax,emax] = evalc(cstr);
+      else [vmax,emax] = eval(cstr); end
     end
+    if nargout>1                        % compute  d n*log(1+emax)/2 / d {hyp,W}
+      r = sW.*vmax; dW = (K(r).*(r./W) + K(r).*(r./W))/2;       % d emax / d W
+      if dmvm==1, dhyp = dK(r)'*r; else dhyp = dK(r,r); end     % d emax / d hyp
+      dW   = n/(2*(1+emax)) * dW; dhyp = n/(2*(1+emax)) * dhyp;        % rescale
+      % for the second term in ldB2 coming from the Chebyshev polynomial, we
+      % ignore the dependency on the largest eigenvalue emax, which essentially
+      % renders the derivative slightly incorrect
+    end
+  else
+    dhyp = 0; dW = zeros(n,1);                      % init derivatives with zero
   end
-  if nargin<5, d = 15; end
-  if nargin<4, m = 10; end
-  d = round(abs(d)); if d==0, error('We require d>0.'), end
-  a = emin+emax; del = 1-emax/a; ldB2 = n*log(a)/2;% scale eig(B) to [del,1-del]
-  if emax>1e5
+  d = round(abs(d)); if d==0, error('We require d>0.'), end           % emin = 1
+  a = 1+emax; del = 1-emax/a; ldB2 = n*log(a)/2;   % scale eig(B) to [del,1-del]
+  if emax>1e5                                                   % del=1/(1+emax)
     fprintf('B has large condition number %1.2e\n',emax)
     fprintf('log(det(B))/2 is most likely overestimated\n')
   end
-  sf = 2/a/(1-2*del); B = @(x) sf*B(x) - 1/(1-2*del)*x;% apply scaling transform
+  s = 2/(emax-1);                    % compute scaling factor, s = 2/a/(1-2*del)
+  A = @(x) s*B(x) - s*a/2*x;         % apply scaling transform: [1,emax]->[-1,1]
 
   xk = cos(pi*((0:d)'+0.5)/(d+1));                              % zeros of Tn(x)
   fk = log(((1-2*del)/2).*xk+0.5);        % target function, [-1,1]->[del,1-del]
@@ -361,31 +449,157 @@ function [ldB2,emax,dhyp,dW] = logdet_sample(W,K,dK, m,d, maxit,emax,seed)
   for i=2:d, Tk(:,i+1) = 2*xk.*Tk(:,i) - Tk(:,i-1); end   % evaluate polynomials
   c = 2/(d+1)*(Tk'*fk); c(1) = c(1)/2;          % compute Chebyshev coefficients
   if nargin>7 && numel(seed)>0, randn('seed',seed), end               % use seed
-  V = sign(randn(n,m)); dhyp = 0; dW = 0; % bulk draw Rademacher variables, init
+  V = sign(randn(n,m));                         % bulk draw Rademacher variables
   p1 = [1; zeros(d,1)]; p2 = [0;1;zeros(d-1,1)]; % Chebyshev->usual coefficients
   p = c(1)*p1 + c(2)*p2;
   for i=2:d, p3 = [0;2*p2(1:d)]-p1; p = p + c(i+1)*p3; p1 = p2; p2 = p3; end
-  if nargout<3                       % use bulk mvms with B, one for each j=1..d
-    U = p(1)*V; BjV = V; for j=1:d, BjV = B(BjV); U = U + p(j+1)*BjV; end
-    ldB2 = ldB2 + sum(sum(V.*U))/(2*m);
-  else                               % deal with one Rademacher vector at a time
-    Bv = zeros(n,d+1);                            % all powers Bv(:,j) = (B^j)*v
+  if nargout<2  % no derivs requested; use bulk MVMs with A, one for each j=1..d
+%     U = p(1)*V; AjV = V; for j=1:d, AjV = A(AjV); U = U + p(j+1)*AjV; end
+    U1 = V; U2 = A(V); U = c(1)*U1 + c(2)*U2;          % numerically more robust
+    for i=2:d, U3 = 2*A(U2) - U1; U = U+c(i+1)*U3; U1 = U2; U2 = U3; end
+    ldB2 = ldB2 + sum(sum(V.*U))/(2*m);    % sum_{j=0..d} p(j+1)*trace(V'*A^j*U)
+  elseif dmvm==1                                     % use MVM-based derivatives
+    dA = @(x) s*bsxfun(@times,sW, dK(bsxfun(@times,sW,x) ));    % derivative MVM
+    if nargout>2
+      if norm(diff(W))>1e-12, error('Only isotropic dW supported.'), end
+      dA = @(x) [dA(x), s*K(x)];        % augment to get deriv w.r.t. W=w*eye(n)
+    end
+    U = p(1)*V; AjV = V; dU = 0;
+    for j=1:d
+      if j==1, dAjV = dA(AjV); else dAjV = dA(AjV) + A(dAjV); end
+      dU = dU + p(j+1)*dAjV; AjV = A(AjV); U = U + p(j+1)*AjV;
+    end
+    nh = size(dAjV,2)/size(AjV,2); dhyp = zeros(nh,1);
+    for j=1:nh, dhyp(j) = sum(sum(V.*dU(:,(j-1)*m+(1:m))))/(2*m); end
+    ldB2 = ldB2 + sum(sum(V.*U))/(2*m);    % sum_{j=0..d} p(j+1)*trace(V'*B^j*U)
+    if nargout>2, dW = dW + dhyp(nh)/n; nh = nh-1; dhyp = dhyp(1:nh); end
+  else                                   % deal with one random vector at a time
+    Av = zeros(n,d+1);                            % all powers Av(:,j) = (A^j)*v
     for i=1:m
-      v = V(:,i); Bv(:,1) = v;
-      for j=1:d, Bv(:,j+1) = B(Bv(:,j)); end
-      ldB2 = ldB2 + (v'*Bv*p)/(2*m);
-      sWBv = bsxfun(@times,sW,Bv);
-      for j=1:d                   % p(1)*I + p(2)*B + p(3)*B^2 + .. + p(d+1)*B^d
-        for k=1:ceil(j/2)
-          akj = sf*p(j+1)/m; if k==ceil(j/2) && mod(j,2)==1, akj = akj/2; end
-          dhyp = dhyp + akj * dK(sWBv(:,j-k+1),sWBv(:,k));
+      v = V(:,i); Av(:,1) = v;
+      for j=1:d, Av(:,j+1) = A(Av(:,j)); end
+      ldB2 = ldB2 + (v'*Av*p)/(2*m);
+      sWAv = bsxfun(@times,sW,Av);
+      for j=1:d                   % p(1)*I + p(2)*A + p(3)*A^2 + .. + p(d+1)*A^d
+        akj = s*p(j+1)/m;
+        % equivalent to: k = 1:j; dhyp = dhyp + akj*dK(sWAv(:,j-k+1),sWAv(:,k));
+        % exploiting symmetry dK(a,b)=dK(b,a) reduces the computation to half
+        k = 1:ceil((j-1)/2); dhyp = dhyp + akj  *dK(sWAv(:,j-k+1),sWAv(:,k));
+        if mod(j,2)
+          k = ceil(j/2); dhyp = dhyp + akj/2*dK(sWAv(:,j-k+1),sWAv(:,k));
         end
       end
-      if nargout>3, u = bsxfun(@times,1./sW,Bv); w = K(sWBv);       % precompute
+      if nargout>2, u = bsxfun(@times,1./sW,Av); w = K(sWAv);       % precompute
         for j=1:d
           dWj = sum( u(:,j:-1:1).*w(:,1:j) + w(:,j:-1:1).*u(:,1:j), 2 );
-          dW = dW + sf*p(j+1)/(4*m) * dWj;
+          dW = dW + s*p(j+1)/(4*m) * dWj;
         end
       end
     end
   end
+
+% Approximate l = log(det(B))/2, where B = I + sqrt(W)*K*sqrt(W) and
+% the derivatives d l / d hyp w.r.t. covariance hyperparameters and
+% d l / d W the gradient w.r.t. the (effective) precision matrix W.
+%
+% W      is the (diagonal) precision matrix represented by an nx1 vector
+% K      is a function so that K(z) gives the mvm K*z
+% dK     is a function so that dK(u,v) yields d trace(u'*K*v) / d hyp (dmvm = 2)
+%                  or  so that dK(u)   yields d K*u / d hyp           (dmvm = 1)
+%
+% m      is the number of random probe vectors, default values is 10
+% maxit  is the number of Lanczos vectors, default value is 15
+%
+% seed   is the seed for generating the random probe vectors
+% dmvm   indicates derivative type, default is 2
+%
+% Copyright (c) by Kun Dong and Hannes Nickisch 2017-05-05.
+
+function [ld,dhyp,dW] = ldB2_lanczos(W,K,dK, m,maxit, seed,dmvm)
+  n = numel(W); sW = sqrt(W); if nargin<6, seed = 42; end   % massage parameters
+  if nargin<5, maxit = 15; end, if nargin<4, m = 10; end    % set default values
+  arpack = maxit>0; maxit = abs(maxit);       % sign encodes ARPACK versus plain
+  if size(m,2)>1, V = m(1:n,:); m = size(m,2); else V = sign(randn(n,m)); end
+  if nargin>5 && numel(seed)>0, randn('seed',seed), end               % use seed
+  if nargin<7, dmvm = 2; end, ld = 0; dhyp = 0; dW = 0;           % set defaults
+  sWm = @(v) bsxfun(@times,sW,v);                            % MVM with diag(sW)
+  B = @(v) v + sWm(K(sWm(v)));
+  for j = 1:m
+    if arpack
+      [Q,T] = lanczos_arpack(B,V(:,j),maxit);      % perform Lanczos with ARPACK
+    else
+      [Q,T] = lanczos_full(B,V(:,j),maxit);              % perform plain Lanczos
+    end
+    [Y,f] = eig(T); f = diag(f);
+    ld = ld + n/(2*m) * (Y(1,:).^2*log(f));        % evaluate Stieltjes integral
+    if nargout > 1                                        % go after derivatives
+      v0 = sW.*V(:,j)/norm(V(:,j));                        % avoid call to normc
+      w0 = (Q*(T\[1; zeros(numel(f)-1,1)])).*sW;   
+      if dmvm==1, dhypj = dK(v0)'*w0;  else dhypj = dK(v0,w0); end
+      dhyp = dhyp + n/(2*m) * dhypj;
+      if nargout>2, dW = dW + n/(2*m)*(K(v0).*(w0./W) + K(w0).*(v0./W))/2; end
+    end
+  end
+
+function [Q,T] = lanczos_full(B,v,d)       % perform Lanczos with at most d MVMs
+  alpha = zeros(d,1); beta = zeros(d,1);                                 % for T
+  v = v/norm(v,'fro'); n = numel(v);
+  u = zeros(n,1); k = 1; Q = zeros(n,d);                   % mem for alg and res
+  for k=1:d                                            % do at most d iterations
+    [u,v,alpha(k),beta(k)] = lanczos_step(u,v,B,Q(:,1:k-1));
+    Q(:,k) = u;                          % store Lanczos vectors for later usage
+    if abs(beta(k))<1e-10, break, end                     % diagnose convergence
+  end
+  alpha = alpha(1:k); beta = beta(2:k); Q = Q(:,1:k);                 % truncate
+  T = diag(alpha) + diag(beta,1 )+ diag(beta,-1);
+
+function [u,v,a,b] = lanczos_step(u,v,B,Q)       % Lanczos step, $9.2.1 of Golub
+  b = norm(v,'fro'); t = u; u = v/b;
+  u = u - Q*(Q'*u); u = u/norm(u);                        % perform Gram-Schmidt
+  r = B(u)-b*t; a = real(u'*r); v = r-a*u;
+
+function [Q,T] = lanczos_arpack(B,v,d)     % perform Lanczos with at most d MVMs
+  mv = ver('matlab');                                   % get the Matlab version
+  if numel(mv)==0, error('No ARPACK reverse communication in Octave.'), end
+  mv = str2double(mv.Version); old = mv<8;% Matlab 7.14=R2012a has old interface
+  [junk,maxArraySize] = computer; m32 = maxArraySize==(2^31-1); % we have 32bit?
+  if m32, intstr = 'int32'; else intstr = 'uint64'; end   % according data types
+  intconvert = @(x) feval(intstr,x);  % init and allocate depending on # of bits
+  n = length(v);
+  v = bsxfun(@times,v,1./sqrt(sum(v.*v,1)));               % avoid call to normc
+  ido = intconvert(0); nev = intconvert(ceil((d+1)/2)); ncv = intconvert(d+1);
+  ldv = intconvert(n); info = intconvert(1);
+  lworkl = intconvert(int32(ncv)*(int32(ncv)+8));
+  iparam = zeros(11,1,intstr); ipntr = zeros(15,1,intstr);
+  if exist('arpackc_reset'), arpackc_reset(); end
+  iparam([1,3,7]) = [1,300,1]; tol = 1e-10;
+  Q = zeros(n,ncv); workd = zeros(n,3); workl = zeros(lworkl,1); count = 0;
+  
+  while ido~=99 && count<=d
+    count = count+1;
+    if old
+                   arpackc('dsaupd',ido,'I',intconvert(n),'LM',nev,tol,v,...
+                                ncv,Q,ldv,iparam,ipntr,workd,workl,lworkl,info);
+    else
+      [ido,info] = arpackc('dsaupd',ido,'I',intconvert(n),'LM',nev,tol,v,...
+                                ncv,Q,ldv,iparam,ipntr,workd,workl,lworkl,info);
+    end
+    if info<0
+      error(message('ARPACKroutineError',aupdfun,full(double(info))));
+    end
+    if ido == 1, inds = double(ipntr(1:3));
+    else         inds = double(ipntr(1:2)); end
+    rows = mod(inds-1,n)+1; cols = (inds-rows)/n+1; % referenced column of ipntr
+    if ~all(rows==1), error(message('ipntrMismatchWorkdColumn',n)); end
+    switch ido                       % reverse communication interface of ARPACK
+      case -1, workd(:,cols(2)) = B(workd(:,cols(1)));
+      case  1, workd(:,cols(3)) =   workd(:,cols(1));
+               workd(:,cols(2)) = B(workd(:,cols(1)));
+      case  2, workd(:,cols(2)) =   workd(:,cols(1));
+      case 99                                                        % converged
+      otherwise, error(message('UnknownIdo'));
+    end
+  end
+  ncv = int32(ncv);
+  Q = Q(:,1:ncv-1);                                            % extract results
+  T = diag(workl(ncv+1:2*ncv-1))+diag(workl(2:ncv-1),1)+diag(workl(2:ncv-1),-1);

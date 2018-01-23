@@ -35,7 +35,7 @@ LIBS =
 #LIBS = -lblas
 
 ### 4) Choose FORTRAN compiler ################################################
-FFLAGS = -O3 -fPIC -fexceptions -Wall -g -Wno-uninitialized
+FFLAGS = -O3 -fPIC -fexceptions -Wall -Wno-uninitialized
 ### To work with f77, uncomment the following two lines. ----------------------
 #F77         = f77
 #FORTRAN_LIB = g2c

@@ -1,7 +1,7 @@
- GAUSSIAN PROCESS REGRESSION AND CLASSIFICATION Toolbox version 4.0
+ GAUSSIAN PROCESS REGRESSION AND CLASSIFICATION Toolbox version 4.1
     for GNU Octave 3.2.x and Matlab 7.x
 
-Copyright (c) by Carl Edward Rasmussen and Hannes Nickisch, 2016-10-19.
+Copyright (c) by Carl Edward Rasmussen and Hannes Nickisch, 2017-10-19.
 
 
 
@@ -32,9 +32,11 @@ f) the paper by Naish-Guzman and Holden: "The Generalized FITC Approximation",
 g) the paper by Duvenaud, Nickisch and Rasmussen: "Additive Gaussian Processes",
    NIPS, 2011, in
 h) the paper by Wilson and Adams: "Gaussian Process Kernels for Pattern
-   Discovery and Extrapolation", ICML, 2013, and in
-i) the paper Snelson, Rasmussen and Ghahramani: "Warped Gaussian Processes",
-   NIPS, 2003.
+   Discovery and Extrapolation", ICML, 2013, in
+i) the paper by Snelson, Rasmussen and Ghahramani: "Warped Gaussian Processes",
+   NIPS, 2003, and in
+j) the paper by Wilson and Nickisch: "Kernel interpolation for scalable
+   structured Gaussian processes (KISS-GP)", ICLM, 2015.
 
 There are 7 code subdirectories: cov, doc, inf, lik, mean, prior and util.
 
@@ -138,7 +140,7 @@ Thanks to Giampiero Salvi for posting the workaround.
 3) CURRENT VERSION
 ==================
 
-The current version of the programs is 4.0. Previous versions of the code are
+The current version of the programs is 4.1. Previous versions of the code are
 available at http://www.gaussianprocess.org/gpml/code/oldcode.html.
 
 
@@ -146,7 +148,32 @@ available at http://www.gaussianprocess.org/gpml/code/oldcode.html.
 4) DIFFERENCES TO PREVIOUS VERSIONS
 ===================================
 
-NEW in version 4.0, 2016-09-29
+NEW in version 4.1, 2017-10-19
+------------------------------
+
+Logdet-estimation functionality for grid-based approximate covariances
+- Lanczos subspace estimation
+- Chebyshef polynomial expansion
+
+More generic infEP functionality
+- dense computations and sparse approximations using the same code
+- covering KL inference as a special cas of EP
+
+New infKL function contributed by Emtiyaz Khan and Wu Lin
+- Conjugate-Computation Variational Inference algorithm
+- much more scalable than previous versions
+
+Time-series covariance functions on the positive real line
+- covW (i-times integrated) Wiener process covariance
+- covOU (i-times integrated) Ornstein-Uhlenbeck process covariance (contributed by Juan Pablo Carbajal)
+- covULL underdamped linear Langevin process covariance (contributed by Robert MacKay)
+- covFBM Fractional Brownian motion covariance
+
+New covariance functions
+- covWarp implements k(w(x),w(z)) where w is a "warping" function
+- covMatern has been extended to also accept non-integer distance parameters
+
+NEW in version 4.0, 2016-10-19
 ------------------------------
 A major code restructuring effort did take place in the current release unifying
 certain inference functions and allowing more flexibility in covariance function
@@ -163,6 +190,8 @@ Approximate covariance object unifying sparse approximations, grid-based approxi
  - implementation in cov/apx, cov/apxGrid, cov/apxSparse
  - generic infGaussLik unifies infExact,   infFITC         and infGrid
  - generic infLaplace  unifies infLaplace, infFITC_Laplace and infGrid_Laplace
+ - generic infVB
+ - enables efficient grid-based algebra for off-grid inputs, see reference j) above
 
 Hiearchical structure of covariance functions
  - clear hierachical compositional implementation
@@ -187,8 +216,11 @@ New mean functions
 New optimizer
  - added a new minimize_minfunc, contributed by Truong X. Nghiem
 
+New prior
+ - added prior{Equal|Same}Multi forcing a group of hyperparameters to the same value
+
 New GLM link function
- - added the logistic link function util/glm_invlink_logistic2
+ - added the twice logistic link function util/glm_invlink_logistic2
 
 Smaller fixes
  - two-fold speedup of util/elsympol used by covADD by Truong X. Nghiem

@@ -15,30 +15,39 @@
 %   covPref       - difference covariance for preference learning
 %   covPER        - make stationary covariance periodic
 %   covADD        - additive covariance function
+%   covWarp       - warp input to a covariance function
 %
 % 3) Mahalanobis distance based covariances and their modes
 %   covMaha       - generic "mother" covariance
+%    * eye        - unit length scale
+%    * iso        - isotropic length scale
+%    * ard        - automatic relevance determination
+%    * prot       - (low-rank) projection in input space
+%    * fact       - factor analysis covariance
+%    * vlen       - spatially varying length scale
 %   covGE         - Gamma exponential covariance
 %   covMatern     - Matern covariance function with nu=1/2, 3/2 or 5/2
 %   covPP         - piecewise polynomial covariance function (compact support)
 %   covRQ         - rational quadratic covariance function
 %   covSE         - squared exponential covariance function
+%
+% 4) Dot product based covariances and their modes
+%   covDot        - generic "mother" covariance
 %    * eye        - unit length scale
 %    * iso        - isotropic length scale
 %    * ard        - automatic relevance determination
 %    * pro        - (low-rank) projection in input space
 %    * fac        - factor analysis covariance
-%    * vle        - spatially varying length scale
-%
-% 4) Dot product based covariances and their modes
-%   covDot        - generic "mother" covariance
 %   covLIN        - linear covariance function
 %   covPoly       - polynomial covariance function
-%    * eye        - unit length scale
-%    * iso        - isotropic length scale
-%    * ard        - automatic relevance determination
 %
-% 5) Standalone covariances
+% 5) Time series covariance functions on the positive real line
+%   covFBM        - fractional Brownian motion covariance
+%   covULL        - underdamped linear Langevin process covariance
+%   covW          - i-times integrated Wiener process covariance
+%   covOU         - i-times integrated Ornstein-Uhlenbeck process covariance
+%
+% 6) Standalone covariances
 %   covNNone      - neural network covariance function
 %   covLINone     - linear covariance function with bias
 %   covPeriodic   - smooth periodic covariance function (1d)
@@ -46,7 +55,7 @@
 %   covCos        - sine periodic covariance function (1d) with unit period
 %   covGabor      - Gabor covariance function
 %
-% 6) Shortcut covariances assembled from library
+% 7) Shortcut covariances assembled from library
 %   covConst      - covariance for constant functions
 %   covNoise      - independent covariance function (i.e. white noise)
 %   covPERiso     - make isotropic stationary covariance periodic
@@ -68,7 +77,7 @@
 %   covGaborsio   - isotropic Gabor covariance function
 %   covSM         - spectral mixture covariance function
 %
-% 7) Special purpose (approximation) covariance functions
+% 8) Special purpose (approximation) covariance functions
 %   apxSparse     - sparse approximation: to be used for large scale inference
 %                   problems with inducing points aka FITC
 %   apxGrid       - grid interpolation:   to be used for large scale inference
@@ -141,7 +150,7 @@
 %   q=1; cov = {'covPPiso',q};
 %   d=3; cov = {'covPoly',d};
 %        cov = {'covADD',{[1,2],'covSEiso'}};
-%        cov = {@covFITC, {@covSEiso}, u};  where u are the inducing inputs
+%        cov = {@apxSparse, {@covSEiso}, u};  where u are the inducing inputs
 %
 % specifies a covariance function which is the sum of three contributions. To 
 % find out how many hyperparameters this covariance function requires, we do:
@@ -153,5 +162,5 @@
 %
 % See also doc/usageCov.m.
 %
-% Copyright (c) by Carl Edward Rasmussen and Hannes Nickisch, 2016-10-19.
+% Copyright (c) by Carl Edward Rasmussen and Hannes Nickisch, 2017-11-28.
 %                                      File automatically generated using noweb.
