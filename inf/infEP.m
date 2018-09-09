@@ -104,6 +104,7 @@ last_ttau = ttau; last_tnu = tnu;                       % remember for next call
 if nargout>2                                           % do we want derivatives?
   if s==1                                      % normal infEP minimising KL(p,q)
     dnlZ = dhyp(alpha);                              % covariance-related hypers
+    dnlZ.lik = zeros(numel(hyp.lik),1);                        % allocate memory
     for i = 1:numel(hyp.lik)                                 % likelihood hypers
       dlik = feval(lik{:},hyp.lik,y,nu_n./tau_n,1./tau_n,inf,i);
       dnlZ.lik(i) = -sum(dlik);
@@ -113,14 +114,13 @@ if nargout>2                                           % do we want derivatives?
   elseif s==0                                         % infKL minimising KL(q,p)
     dnlZ = dhyp(alpha); v = post.diagSigma;          % covariance-related hypers
     dv = -ttau/2;    % at convergence we have df = alpha and dv = -W/2 = -ttau/2
-    
     if sparse
       warning('dnlZ.cov for covSparse and s==0 not yet supported\n')
     else
       [junk,dK] = feval(cov{:}, hyp.cov, x); A = post.A;    % not (yet) scalable
       dnlZ.cov = dnlZ.cov - dK( diag(dv)*A'*(A-A') );
     end
-
+    dnlZ.lik = zeros(numel(hyp.lik),1);                        % allocate memory
     for i = 1:numel(hyp.lik)                                 % likelihood hypers
       dnlZ.lik(i) = -sum( likKL(v,lik,hyp.lik,y,K.mvm(alpha)+m,[],[],i) );
     end
@@ -142,7 +142,7 @@ function nlZ = ep_Z(post,alpha,tau_n,nu_n,ldB2,solveKiW,triB,...
                                                        K,m,y,ttau,tnu,lik,hyp,s)
   if s==1                                      % normal infEP minimising KL(p,q)
     lZ = feval(lik{:}, hyp.lik, y, nu_n./tau_n, 1./tau_n, 'infEP');
-    p = tnu-m.*ttau; q = nu_n-m.*tau_n; r = K.mvm(p);      % auxiliary vectors
+    p = tnu-m.*ttau; q = nu_n-m.*tau_n; r = K.mvm(p);        % auxiliary vectors
     nlZ = ldB2-sum(lZ)-p'*r/2 +r'*solveKiW(r)/2 +(post.diagSigma'*p.^2)/2 ...
        -q'*((ttau./tau_n.*q-2*p).*post.diagSigma)/2-sum(log(1+ttau./tau_n))/2;
   else                                                % infKL minimising KL(q,p)

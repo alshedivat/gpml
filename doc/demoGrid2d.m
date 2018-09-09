@@ -10,7 +10,7 @@ pred = input('Which prediction?\n  (f)ast, (v)ar+fast, (p)lain: ','s');
 x1 = linspace(-2,2,137)'; x2 = linspace(-3,3,132)';  % construct covariance grid
 cov = {{@covSEiso},{@covSEiso}};                % stationary covariance function
 mean = {@meanConst}; lik = {@likGauss};     % constant mean, Gaussian likelihood
-sf = 1; ell = 0.5; hypcov = log([ell;sf]); hyp.cov = log([ell;sf/2; ell;sf/2]);
+sf = 1; ell = 0.2; hypcov = log([ell;sf]); hyp.cov = log([ell;sf/2; ell;sf/2]);
 hyp.mean = 0.1; sn = 0.1; hyp.lik = log(sn); % mean & likelihood hyperpapameters
 switch strc
   case 'k',  xg = {  x1, x2 };                       % plain Kronecker structure
@@ -44,17 +44,17 @@ if isequal(strc,'k'), xg = apxGrid('create',xx,true,[137,132]); end
 xgs = {linspace(-4,4,400)',linspace(-6,6,410)'};    % construct a test data grid
 [xs,ns] = apxGrid('expand',xgs);
 par = {mean,covg,lik,x};              % shortcut for Gaussian process parameters
-fprintf('Optimise hyperparameters.\n')
-hyp = minimize(hyp,@gp,-N,inf,par{:},y);              % optimise hyperparameters
 opt.stat = true;                   % show some more information during inference
 opt.ndcovs = 25;                    % ask for sampling-based (exact) derivatives
 
-if strcmp(pred,'v'), opt.pred_var = 20; end
+% if strcmp(pred,'v'), opt.pred_var = -50; end % Lanczos-based estimation (LOVE)
+if strcmp(pred,'v'), opt.pred_var =  20; end % sampling-based estimation
+
 tic, [post,nlZ,dnlZ] = infGrid(hyp,par{:},y,opt); ti = toc; tic  % run inference
 switch pred
   case 'f',                     [fmu,fs2,ymu,ys2] = post.predict(xs);
   case 'v',                     [fmu,fs2,ymu,ys2] = post.predict(xs);
-  otherwise, post.L = @(a) 0*a; [ymu ys2 fmu fs2] = gp(hyp,inf,par{:},post,xs);
+  otherwise, post.L = @(a) 0*a; [ymu,ys2,fmu,fs2] = gp(hyp,inf,par{:},post,xs);
 end
 fprintf('Inference/prediction took %1.2f/%1.2f[s]\n',ti,toc)
 

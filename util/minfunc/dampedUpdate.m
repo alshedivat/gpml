@@ -1,4 +1,4 @@
-function [old_dirs,old_stps,Hdiag,Bcompact] = lbfgsUpdate(y,s,corrections,debug,old_dirs,old_stps,Hdiag)
+function [old_dirs,old_stps,Hdiag,Bcompact] = dampedUpdate(y,s,corrections,debug,old_dirs,old_stps,Hdiag)
 
 %B0 = eye(length(y))/Hdiag;
 S = old_dirs(:,2:end);

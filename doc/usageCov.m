@@ -2,7 +2,7 @@
 %
 % See also covFunctions.m.
 %
-% Copyright (c) by Carl Edward Rasmussen and Hannes Nickisch, 2017-11-28.
+% Copyright (c) by Carl Edward Rasmussen and Hannes Nickisch, 2018-08-22.
 %                                      File automatically generated using noweb.
 clear all, close all
 n = 5; D = 3; x = randn(n,D); xs = randn(3,D);  % create a data set

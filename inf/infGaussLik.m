@@ -7,7 +7,7 @@ function [post nlZ dnlZ] = infGaussLik(hyp, mean, cov, lik, x, y, opt)
 % a specified covariance function (see covFunctions.m) and likelihood function
 % (see likFunctions.m), and is designed to be used with gp.m.
 %
-% Copyright (c) by Carl Edward Rasmussen and Hannes Nickisch, 2017-11-28.
+% Copyright (c) by Carl Edward Rasmussen and Hannes Nickisch, 2018-08-22.
 %                                      File automatically generated using noweb.
 %
 % See also INFMETHODS.M, APX.M.
@@ -18,7 +18,7 @@ if ~ischar(likstr), likstr = func2str(likstr); end
 if ~strcmp(likstr,'likGauss')               % NOTE: no explicit call to likGauss
   error('Exact inference only possible with Gaussian likelihood');
 end
- 
+
 [n, D] = size(x);
 [m,dm] = feval(mean{:}, hyp.mean, x);           % evaluate mean vector and deriv
 sn2 = exp(2*hyp.lik); W = ones(n,1)/sn2;            % noise variance of likGauss

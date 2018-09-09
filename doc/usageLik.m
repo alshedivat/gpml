@@ -2,7 +2,7 @@
 %
 % See also likFunctions.m.
 %
-% Copyright (c) by Carl Edward Rasmussen and Hannes Nickisch, 2017-11-28.
+% Copyright (c) by Carl Edward Rasmussen and Hannes Nickisch, 2018-08-22.
 %                                      File automatically generated using noweb.
 clear all, close all
 n = 5; f = randn(n,1);       % create random latent function values

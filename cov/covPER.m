@@ -29,6 +29,7 @@ elseif isequal(mode,'eye'), ne = '0';
 else error('Parameter mode is either ''eye'', ''iso'' or ''ard''.'), end
 
 if nargin<4                                        % report number of parameters
+    % occurences of D replaced by 2*D as the size of u(x) is twice the size of x
   K = ['(',ne,'+',strrep(feval(cov{:}),'D','2*D'),')']; return
 end
 if nargin<5, z = []; end                                   % make sure, z exists

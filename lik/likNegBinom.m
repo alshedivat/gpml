@@ -14,6 +14,7 @@ function [varargout] = likNegBinom(link, hyp, y, mu, s2, inf, i)
 % The link functions are located at util/glm_invlink_*.m.
 % 
 % Note that for neither link function the likelihood lik(f) is log concave.
+% Note further that for r->oo, we recover likPoisson.
 % 
 % The hyperparameters are:
 %

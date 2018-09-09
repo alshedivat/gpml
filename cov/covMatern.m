@@ -21,7 +21,7 @@ function varargout = covMatern(mode, par, d, varargin)
 % than 3 input arguments) or it returns a covariance matrix and (optionally) a
 % derivative function.
 %
-% Copyright (c) by Carl Edward Rasmussen and Hannes Nickisch, 2016-12-14.
+% Copyright (c) by Carl Edward Rasmussen and Hannes Nickisch, 2018-05-29.
 %
 % See also covSE.m, covMaha.m.
 
@@ -57,11 +57,11 @@ function k = psi(d2,nu) % = 2^(1-nu)/gamma(nu) * r^nu*besselk(nu,r) book Eq 4.14
   r = sqrt(2*nu*d2); k = exp(c+nu*log(r)).*besselk(nu,r);
   k(r<1e-7) = 1;                     % fix lim_r->0, see Abramowitz&Stegun 9.6.9
   i = isnan(k) | isinf(k);                             % detect strange behavior
-  if any(i), k(i) = exp(-d2(i)/2); end                  % fix limit_nu->oo covSE
+  if any(i(:)), k(i) = exp(-d2(i)/2); end               % fix limit_nu->oo covSE
 
 function dk = dpsi(d2,k,nu)
   r = sqrt(2*nu*d2);
   dk = -nu*0.5^nu/gamma(nu)*r.^(nu-2).*...
          (r.*besselk(nu-1,r)-2*nu*besselk(nu,r)+r.*besselk(nu+1,r));
   i = isnan(dk) | isinf(dk);                           % detect strange behavior
-  if any(i), dk(i) = (-1/2)*k(i); end                   % fix limit_nu->oo covSE
+  if any(i(:)), dk(i) = (-1/2)*k(i); end                % fix limit_nu->oo covSE

@@ -65,6 +65,16 @@ function K = apx(hyp,cov,x,opt)
 %    rescaled version of the eigenspectrum of the covariance evaluated on the
 %    complete grid.
 %
+% D) State space covariance approximations [8,9]
+%    opt.deriv      flag allows to switch off derivative computations
+%    opt.ngrid      specifies the number of grid points for matrix interpolation
+%    opt.balance    flag to improve state space model numerical stability
+%    opt.qridge     ridge added to Q matrices to improve condition, default 1e-7
+%    opt.rridge     ridge added to R matrix to improve condition,   default 0
+%    opt.alpha_alg  alorithm for solving linear systems,        default 'spingp'
+%                   'spingp' : SpInGP algorithm using sparse matrix algebra
+%                   'kalman' : Kalman filtering/smoothing
+%
 % The call K = apx(hyp,cov,x,opt) yields a structure K with a variety of
 % fields.
 % 1) Matrix-vector multiplication with covariance matrix
@@ -100,18 +110,23 @@ function K = apx(hyp,cov,x,opt)
 % [6] Wilson & Nickisch, Kernel Interp. for Scalable Structured GPs, ICML, 2015
 % [7] Han, Malioutov & Shin,  Large-scale Log-det Computation through Stochastic
 %     Chebyshev Expansions, ICML, 2015.
+% [8] Grigorievskiy, Lawrence, Sarkka, Parallelizable sparse inverse formulation
+%     Gaussian processes (SpInGP),https://arxiv.org/pdf/1610.08035, 2016.
+% [9] Sarkka, Solin, Hartikainen, Spatiotemporal learning via infinite-dim
+%     Bayesian filtering and smoothing. IEEE Signal Processing Magazine, 2013.
 %
 % Copyright (c) by Carl Edward Rasmussen, Kun Dong, Insu Han and
-%                                                    Hannes Nickisch 2017-05-05.
+%                                                    Hannes Nickisch 2018-06-03.
 %
 % See also apxSparse.m, apxGrid.m, gp.m.
 
 if nargin<4, opt = []; end                           % make sure variable exists
 if isnumeric(cov), c1 = 'numeric'; else c1 = cov{1}; end         % detect matrix
 if isa(c1, 'function_handle'), c1 = func2str(c1); end         % turn into string
-sparse = strcmp(c1,'apxSparse') || strcmp(c1,'covFITC');
-grid   = strcmp(c1,'apxGrid')   || strcmp(c1,'covGrid');
-exact = ~grid && ~sparse;
+spars = strcmp(c1,'apxSparse') || strcmp(c1,'covFITC');
+grid  = strcmp(c1,'apxGrid')   || strcmp(c1,'covGrid');
+state = strcmp(c1,'apxState');
+exact = ~grid && ~spars && ~state;
 
 if exact                   % A) Exact computations using dense matrix operations
   if strcmp(c1,'numeric'), K = cov; dK = [];           % catch dense matrix case
@@ -121,7 +136,7 @@ if exact                   % A) Exact computations using dense matrix operations
   K = struct('mvm',@(x)mvmK_exact(K,x), 'P',@(x)x, 'Pt',@(x)x,... % mvm and proj 
              'fun',@(W)ldB2_exact(W,K,dK));
 
-elseif sparse                                         % B) Sparse approximations
+elseif spars                                          % B) Sparse approximations
   if isfield(opt,'s'), s = opt.s; else s = 1.0; end            % default is FITC
   xud = isfield(hyp,'xu');      % flag deciding whether to compute hyp.xu derivs
   if xud, cov{3} = hyp.xu; end                 % hyp.xu provided, replace cov{3}
@@ -170,6 +185,54 @@ elseif grid                                            % C)  Grid approximations
   K.mvm = @(x) Mx*Kg.mvm(Mx'*x);                    % mvm with covariance matrix
   K.P = @(x)x; K.Pt = @(x)x;                             % projection operations
   K.fun = @(W) ldB2_grid(W,K,Kg,xg,Mx,cgpar,ldpar); K.Mx = Mx;
+
+elseif state
+  if isfield(opt,'deriv'), deriv = opt.deriv; else deriv = true; end   % default
+  if isfield(opt,'ngrid'), ng = max(opt.ngrid,6); else  ng = []; end   % default
+  if isfield(opt,'balance'), bal = opt.balance; else  bal = false; end % default
+  if isfield(opt,'qridge'),  qr = opt.qridge;   else  qr = 1e-7; end   % default
+  if isfield(opt,'rridge'),  rr = opt.rridge;   else  rr = 0; end      % default
+  if isfield(opt,'alpha_alg'), aalg = opt.alpha_alg;  else aalg = 'spingp'; end
+
+  global t0, t0 = min(x);     % ugly but the only way to get this into covLINiso
+  [F,L,Qc,H,Pinf,stat,dF,dQc,dPinf] = apxState(cov{2},hyp.cov);    % state space
+
+  if bal            % balance state space model for improved numerical stability
+    [T,F] = balance(F); L = T\L; H = H*T;                     % balance F,L,Qc,H
+    LL = T\chol(Pinf,'lower'); Pinf = LL*LL';                     % balance Pinf
+    for j=1:size(dF,3)                                    % balance dF and dPinf
+      dF(:,:,j) = T\dF(:,:,j)*T; dPinf(:,:,j) = T\dPinf(:,:,j)/T;
+    end
+  end
+
+  par = {'trans',F,L,Qc,H,Pinf,stat,x};
+  if deriv
+    [As,Qs,t,tid,dAs,dQs] = apxState(par{:},ng,dF,dQc,dPinf);
+  else
+    [As,Qs,t,tid] = apxState(par{:},ng); dAs = []; dQs = [];
+  end
+  d = numel(H); n = size(x,1); nh = size(dF,3);
+
+  % construct G,Q,B matrices K = G*A*Q*A'*G', A = inv(B)
+  G = [sparse(n,d), kron(sparse(tid(2:n+1),1:n,1,n,n),H)];      % contains index
+  for i=1:n+1, Qs(:,:,i) = Qs(:,:,i) + qr*eye(d); end             % regularise Q
+  Q = blktridiag([],Qs);
+  B = blktridiag(-As(:,:,2:n+1),repmat(eye(d),[1,1,n+1]));
+  dQ = cell(nh,1); dB = cell(nh,1);
+  if deriv
+    for i=1:nh
+      dQi = reshape(dQs(:,:,i,:),d,d,n+1);
+      dQ{i} = blktridiag([],dQi);
+      dAi = reshape(dAs(:,:,i,2:n+1),d,d,n);
+      dB{i} = blktridiag(-dAi,repmat(zeros(d),[1,1,n+1]));
+    end
+  end
+  iQs = zeros(size(Qs)); for i=1:n+1, iQs(:,:,i) = inv(Qs(:,:,i)); end  % inv(Q)
+  iQ = blktridiag([],iQs);
+  K = struct('mvm',@(x)mvmK_state(x,G,Q,B), ... % mvm
+             'P',@(x)x, 'Pt',@(x)x,...          % proj 
+             'fun',@(W)ldB2_state(W,G,B,Q,iQ,As,Qs,H,Pinf,t,tid,rr,aalg,...
+                                                         dB,dQ, dAs,dQs,dPinf));
 end
 
 %% A) Exact computations using dense matrix operations =========================
@@ -526,7 +589,7 @@ function [ld,dhyp,dW] = ldB2_lanczos(W,K,dK, m,maxit, seed,dmvm)
   B = @(v) v + sWm(K(sWm(v)));
   for j = 1:m
     if arpack
-      [Q,T] = lanczos_arpack(B,V(:,j),maxit);      % perform Lanczos with ARPACK
+      [Q,T] = infGrid('lanczos_arpack',B,V(:,j),maxit);    % Lanczos with ARPACK
     else
       [Q,T] = lanczos_full(B,V(:,j),maxit);              % perform plain Lanczos
     end
@@ -558,48 +621,89 @@ function [u,v,a,b] = lanczos_step(u,v,B,Q)       % Lanczos step, $9.2.1 of Golub
   u = u - Q*(Q'*u); u = u/norm(u);                        % perform Gram-Schmidt
   r = B(u)-b*t; a = real(u'*r); v = r-a*u;
 
-function [Q,T] = lanczos_arpack(B,v,d)     % perform Lanczos with at most d MVMs
-  mv = ver('matlab');                                   % get the Matlab version
-  if numel(mv)==0, error('No ARPACK reverse communication in Octave.'), end
-  mv = str2double(mv.Version); old = mv<8;% Matlab 7.14=R2012a has old interface
-  [junk,maxArraySize] = computer; m32 = maxArraySize==(2^31-1); % we have 32bit?
-  if m32, intstr = 'int32'; else intstr = 'uint64'; end   % according data types
-  intconvert = @(x) feval(intstr,x);  % init and allocate depending on # of bits
-  n = length(v);
-  v = bsxfun(@times,v,1./sqrt(sum(v.*v,1)));               % avoid call to normc
-  ido = intconvert(0); nev = intconvert(ceil((d+1)/2)); ncv = intconvert(d+1);
-  ldv = intconvert(n); info = intconvert(1);
-  lworkl = intconvert(int32(ncv)*(int32(ncv)+8));
-  iparam = zeros(11,1,intstr); ipntr = zeros(15,1,intstr);
-  if exist('arpackc_reset'), arpackc_reset(); end
-  iparam([1,3,7]) = [1,300,1]; tol = 1e-10;
-  Q = zeros(n,ncv); workd = zeros(n,3); workl = zeros(lworkl,1); count = 0;
-  
-  while ido~=99 && count<=d
-    count = count+1;
-    if old
-                   arpackc('dsaupd',ido,'I',intconvert(n),'LM',nev,tol,v,...
-                                ncv,Q,ldv,iparam,ipntr,workd,workl,lworkl,info);
-    else
-      [ido,info] = arpackc('dsaupd',ido,'I',intconvert(n),'LM',nev,tol,v,...
-                                ncv,Q,ldv,iparam,ipntr,workd,workl,lworkl,info);
-    end
-    if info<0
-      error(message('ARPACKroutineError',aupdfun,full(double(info))));
-    end
-    if ido == 1, inds = double(ipntr(1:3));
-    else         inds = double(ipntr(1:2)); end
-    rows = mod(inds-1,n)+1; cols = (inds-rows)/n+1; % referenced column of ipntr
-    if ~all(rows==1), error(message('ipntrMismatchWorkdColumn',n)); end
-    switch ido                       % reverse communication interface of ARPACK
-      case -1, workd(:,cols(2)) = B(workd(:,cols(1)));
-      case  1, workd(:,cols(3)) =   workd(:,cols(1));
-               workd(:,cols(2)) = B(workd(:,cols(1)));
-      case  2, workd(:,cols(2)) =   workd(:,cols(1));
-      case 99                                                        % converged
-      otherwise, error(message('UnknownIdo'));
-    end
+
+%% D)  State space approximations ==============================================
+function [ldB2,solveKiW,dW,dldB2,L,triB] = ldB2_state(W,G,B,Q,iQ,As,Qs,...
+                                      H,Pinf,t,tid,rr,aalg,dB,dQ, dAs,dQs,dPinf)
+  n = numel(W); s = apxState('kalman',As,Qs, H,Pinf, zeros(n,1),W, t,tid);
+  ldB2 = sum(log(s))/2; w = W;          % ldB2 = log(det(I+sqrt(W)*K*sqrt(W)))/2
+  % inv(K+inv(diag(W))) = diag(W) - diag(W)*G*inv(R)*G'*diag(W) where R is BTD
+  W = sparse(1:n,1:n,W,n,n); R = B'*iQ*B + G'*W*G;    % R = inv(Kt)+G'*diag(W)*G
+  R = (R+R')/2;                                               % enforce symmetry
+  if rr>0, R = R + rr*speye(size(R)); end                           % regularize
+
+  if strcmp(aalg,'spingp')  % 2 options: either through sparse matrix algebra ..
+    solveKiW = @(r) W*r - W*(G*(R\(G'*(W*r))));
+  else                                    % .. or via Kalman filtering+smoothing
+    solveKiW = @(r) solveKiW_state(As,Qs, H,Pinf, w.*r,w, t,tid);
+  end                                           % dW = diag(G*inv(R)*G')/2 = ..
+  if nargout<=2, return, end             % .. diag(inv(I+sqrt(W)*K*sqrt(W))*K)/2
+  if exist('sparseinv_mex','file')
+    iR = sparseinv(R);                                    % scalable computation
+  else
+    iR = R\speye(size(R));                    % this computation is NOT scalable
   end
-  ncv = int32(ncv);
-  Q = Q(:,1:ncv-1);                                            % extract results
-  T = diag(workl(ncv+1:2*ncv-1))+diag(workl(2:ncv-1),1)+diag(workl(2:ncv-1),-1);
+  dW = full(diag(G*iR*G'))/2;
+  nh = numel(dB); z = zeros(n,1);
+  if nh>0 && numel(dB{1})>0
+    [s,ga,nu,tau,ms,Ps,ds] = apxState('kalman',As,Qs, H,Pinf, z,w,t,tid,[], ...
+                                                                 dAs,dQs,dPinf);
+    tr = ds'*(1./s)/2;% tr(i)=tr(dKi*Z),Z=W-W*(G*(R\(G'*W)))=inv(K+inv(diag(W)))
+  else
+    tr = zeros(nh,1);
+  end
+  dldB2 = @(varargin) ldB2_deriv_state(G,B,dB,Q,dQ,tr, varargin{:});
+  L = @(r) -solveKiW(r);
+  triB = n - 2*sum(W*dW);               % triB = trace(inv(I+sqrt(W)*K*sqrt(W)))
+
+function al = solveKiW_state(As,Qs, H,Pinf, r,W, t,tid)
+  [z,ga, tnu,ttau, ms,Ps] = apxState('kalman',As,Qs, H,Pinf, r,W, t,tid);
+  [ms,Ps,rho] = apxState('rts',As,Qs,ms,Ps,H);
+  rho(tid) = rho; al = ga - W.*rho(1:end-1);
+
+% dhyp(i) = tr( (Q-R)'*dKi )/2, where dKi = d K / d hyp(i)
+% R = alpha*alpha' + 2*a*b', Q = inv(K+inv(W))
+function dhyp = ldB2_deriv_state(G,B,dB,Q,dQ,tr, alpha,a,b)
+  nh = numel(dB); dhyp.cov = zeros(nh,1);  % number of hyperparameters, allocate
+  if nh==0 || numel(dB{1})==0, return, end    % no matrices available, stop here
+  for i=1:nh %                           iterate over covariance hyperparameters
+    dKi = @(x) dmvmK_state(x,G,Q,B,dQ{i},dB{i});       % MVM with d K / d hyp(i)
+    dhyp.cov(i) = tr(i);
+    if nargin>6, dhyp.cov(i) = dhyp.cov(i) - alpha'*dKi(alpha)/2; end
+    if nargin>8, dhyp.cov(i) = dhyp.cov(i) - a'*dKi(b); end
+  end
+
+function z = dmvmK_state(x,G,Q,B,dQ,dB)      % matrix-vector multiplication O(n)
+  a = B'\(G'*x); z = G*(B\(dQ*a))-G*(B\(dB*(B\(Q*a))))-G*(B\(Q*(B'\(dB'*a))));
+
+function z = mvmK_state(x,G,Q,B)             % matrix-vector multiplication O(n)
+  z = G*(B\(Q*(B'\(G'*x))));
+
+% Construct and solve the block tridiagonal system A*b = x with A of shape
+% (q*n,q*n) and blocksize q.
+% For q=1, we have A = diag(l(:),-1) + diag(d(:)) + diag(u(:).
+%
+%  x and b have shape (q*n,m)
+%  l and u have shape (n-1,1) for q=1 or (q,q,n-1) or (0,0)
+%  d       has  shape (n,1)   for q=1 or (q,q,n)
+%
+%  [ d(1)  u(1)                                  ] [  b(1)  ]   [  x(1)  ]
+%  [ l(1)  d(2)  u(2)                            ] [  b(2)  ]   [  x(2)  ]
+%  [       l(2)  d(3)  u(3)                      ] [        ]   [        ]
+%  [            ...   ...   ...                  ] [  ...   ] = [  ...   ]
+%  [                    ...    ...    ...        ] [        ]   [        ]
+%  [                        l(n-2) d(n-1) u(n-1) ] [ b(n-1) ]   [ x(n-1) ]
+%  [                               l(n-1)  u(n)  ] [  b(n)  ]   [  x(n)  ]
+function [A,b] = blktridiag(l,d,u, x)
+  if ndims(l)==2 && numel(l)>0, l = reshape(l,1,1,[]); end
+  if ndims(d)==2, d = reshape(d,1,1,[]); end, q = size(d,1); n = size(d,3);
+  if nargin<3, u = []; end                                 % default is u(:) = 0
+  if ndims(u)==2 && numel(u)>0, u = reshape(u,1,1,[]); end
+
+  o = reshape(repmat(1:q*n,q,1),q,q,n); vec = @(x) x(:);
+  ii = vec(permute(o,[2,1,3])); jj = vec(o);      % block diagonal index vectors
+  i = ii; j = jj; s = vec(d);
+  if numel(l)>0, i=[i;ii(q*q+1:end)  ]; j=[j;jj(q*q+1:end)-q]; s=[s;vec(l)]; end
+  if numel(u)>0, i=[i;ii(q*q+1:end)-q]; j=[j;jj(q*q+1:end)  ]; s=[s;vec(u)]; end
+  A = sparse(i,j,s,q*n,q*n);
+  if nargout>1, b = A\x; end                     % only solve system if required

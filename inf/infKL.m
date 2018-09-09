@@ -68,6 +68,7 @@ if nargout>2                                           % do we want derivatives?
     [junk,dK] = feval(cov{:}, hyp.cov, x);
     dnlZ.cov = dnlZ.cov - dK( diag(dv)*A'*(A-A') );
   end
+  dnlZ.lik = zeros(1,numel(hyp.lik));                          % allocate memory
   for i = 1:numel(hyp.lik)                                   % likelihood hypers
     dnlZ.lik(i) = -sum( likKL(v,lik,hyp.lik,y,K.mvm(alpha)+m,[],[],i) );
   end

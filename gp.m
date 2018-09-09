@@ -44,7 +44,7 @@ function [varargout] = gp(hyp, inf, mean, cov, lik, x, y, xs, ys)
 %
 % See also infMethods.m, meanFunctions.m, covFunctions.m, likFunctions.m.
 %
-% Copyright (c) by Carl Edward Rasmussen and Hannes Nickisch, 2017-11-28.
+% Copyright (c) by Carl Edward Rasmussen and Hannes Nickisch, 2018-08-22.
 %                                      File automatically generated using noweb.
 if nargin<7 || nargin>9
   disp('Usage: [nlZ dnlZ          ] = gp(hyp, inf, mean, cov, lik, x, y);')

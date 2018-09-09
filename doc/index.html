@@ -9,7 +9,7 @@
 </head>
 <body>
 
-<h1>Documentation for GPML Matlab Code version 4.1</h1>
+<h1>Documentation for GPML Matlab Code version 4.2</h1>
 
 <h2>1) What?</h2>
 
@@ -31,10 +31,10 @@ written by Carl Edward Rasmussen and Chris Williams.</p>
 <h2>2) Download, Install and Documentation</h2>
 
 <p>All the code including demonstrations and html documentation can be
-downloaded in a <a
- href="http://gaussianprocess.org/gpml/code/matlab/release/gpml-matlab-v4.1-2017-10-19.tar.gz">tar</a>
-or <a
- href="http://gaussianprocess.org/gpml/code/matlab/release/gpml-matlab-v4.1-2017-10-19.zip">zip</a>
+downloaded from
+<a href="https://gitlab.com/hnickisch/gpml-matlab/-/archive/master/gpml-matlab-master.zip">gitlab</a>
+or in a <a href="http://gaussianprocess.org/gpml/code/matlab/release/gpml-matlab-v4.2-2018-06-11.tar.gz">tar</a>
+or      <a href="http://gaussianprocess.org/gpml/code/matlab/release/gpml-matlab-v4.2-2018-06-11.zip">zip</a>
 archive file.</p>
 
 <p>Minor changes and incremental bugfixes to the current version are
@@ -133,6 +133,21 @@ need to know about:</p>
   <tt>help infMethods</tt> to get help). An example inference method
   is <a href="../inf/infGaussLik.m"><tt>infGaussLik</tt></a> 
   for exact inference (regression with Gaussian likelihood).
+<dt><strong>Covariance approximations</strong>
+<dd>The covariance approximation as used by <a href="../cov/apx.m"><tt>apx</tt></a> determines an important
+  computational aspect in GP inference: the scalability with the number of inputs.
+  We offer four options here: <br>
+  a) Exact covariance computations serving as default option
+     (<a href="../doc/demoRegression.m"><tt>demoRegression</tt></a>, <a href="../doc/demoClassification.m"><tt>demoClassification</tt></a>), <br>
+  b) sparse covariance approximations exploiting inducing points and conditional independence 
+     (<a href="../cov/apxSparse.m"><tt>apxSparse</tt></a>, <a href="../doc/demoSparse.m"><tt>demoSparse</tt></a>), <br>
+  c) grid-based covariance approximations using interpolation from a rectilinear grid of
+     inducing points and exploiting the resulting Kronecker and Toeplitz property 
+     of covariance matrices
+     (<a href="../cov/apxGrid.m"><tt>apxGrid</tt></a>, <a href="../doc/demoGrid1d.m"><tt>demoGrid1d</tt></a>, <a href="../doc/demoGrid2d.m"><tt>demoGrid2d</tt></a>), and <br>
+  d) state space covariance approximations exploiting a state space representation
+     of univariate GPs
+     (<a href="../cov/apxState.m"><tt>apxState</tt></a>, <a href="../doc/demoState.m"><tt>demoState</tt></a>).
 </dl>  
 
 <h3>3b) The <tt>gp</tt> Function</h3>
@@ -328,7 +343,7 @@ given in the table below:
   </tr>
   <tr bgcolor="#CCCCCC"> 
     <td align="right">&nbsp;</td>
-    <td align="center" bgcolor="#999999"> <div align="right">Approx. cov.</div></td>
+    <td align="center" bgcolor="#999999"> <div align="right">Cov. approxim.: <tt>dense</tt>, <tt>sparse</tt>, <tt>grid</tt> or <tt>state</tt></div></td>
     <td align="center" bgcolor="#999999"><span class="math"><img
  width="18" height="14" align="bottom" border="0"
  src="checkmark.png"
@@ -641,7 +656,7 @@ given in the table below:
   </tr>
   <tr bgcolor="#CCCCCC"> 
     <td align="right">&nbsp;</td>
-    <td align="center" bgcolor="#999999"> <div align="right">Approx. cov.</div></td>
+    <td align="center" bgcolor="#999999"> <div align="right">Cov. approxim.: <tt>dense</tt>, <tt>sparse</tt>, <tt>grid</tt> or <tt>state</tt></div></td>
     <td align="center" bgcolor="#999999"><span class="math"><img
  width="18" height="14" align="bottom" border="0"
  src="checkmark.png"
@@ -1445,9 +1460,10 @@ Jos&eacute; Vallet helped to include hyperparameter priors. The spectral mixture
 inference were contributed by Andrew Gordon Wilson and periodic covariances were added by James Robert Lloyd. The improved
 variational KL implementation comes from Emtiyaz Khan and Wu Lin and the Ornstein-Uhlenbeck and Langevin covariance functions
 are by Juan Pablo Carbajal and Robert MacKay, respectively. Improved logdet estimation for grid-based covariance approximations
-were contributed by Kun Dong and Insu Han.</p>
+were contributed by Kun Dong and Insu Han.
+State space inference code was developed together with Arno Solin and Alex Grigorievskiy.</p>
 
 <hr>
-Last modified: November 27th, 2017.
+Last modified: June 11th, 2018.
 </body>
 </html>

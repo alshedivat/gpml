@@ -1,6 +1,6 @@
-function [x,k,res,negCurv] = cg(A,b,optTol,maxIter,verbose,precFunc,precArgs,matrixVectFunc,matrixVectArgs)
+function [x,k,res,negCurv] = conjGrad(A,b,optTol,maxIter,verbose,precFunc,precArgs,matrixVectFunc,matrixVectArgs)
 % [x,k,res,negCurv] =
-% cg(A,b,optTol,maxIter,verbose,precFunc,precArgs,matrixVectFunc,matrixVect
+% conjGrad(A,b,optTol,maxIter,verbose,precFunc,precArgs,matrixVectFunc,matrixVect
 % Args)
 % Linear Conjugate Gradient, where optionally we use
 % - preconditioner on vector v with precFunc(v,precArgs{:})

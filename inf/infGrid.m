@@ -12,7 +12,7 @@ function [post nlZ dnlZ] = infGrid(hyp, mean, cov, lik, x, y, opt)
 %
 % The function takes a specified covariance function (see covFunctions.m) and
 % likelihood function (see likFunctions.m), and is designed to be used with
-% gp.m and in conjunction with covGrid* and likGauss.
+% gp.m and in conjunction with apxGrid.m.
 %
 % In case of equispaced data points, we use Toeplitz/BTTB algebra. We use a
 % circulant embedding approach to approximate the log determinant of the
@@ -21,7 +21,7 @@ function [post nlZ dnlZ] = infGrid(hyp, mean, cov, lik, x, y, opt)
 % equal to 'toep', 'bttb2', 'bttb3', etc.), we automatically use the circulant
 % determinant approximation. The grid specification needs to reflect this.
 % There are some examples to illustrate the doubly nested curly bracket
-% formalism. See also "help covGrid".
+% formalism. See also "help apxGrid".
 %
 % There are a set of options available:
 % opt.pred_var, minimum value is 20 as suggested in the Papandreou paper
@@ -29,6 +29,8 @@ function [post nlZ dnlZ] = infGrid(hyp, mean, cov, lik, x, y, opt)
 %   methods available to higher dimensional data. We offer two ways of
 %   restricting the projection matrix hyp.P to either orthonormal matrices,
 %   where hyp.P*hyp.P'=I or normalised projections diag(hyp.P*hyp.P')=1.
+%   Negative values indicate that we are using Lanczos variance estimation
+%   as described by Pleiss et al. in https://arxiv.org/abs/1803.06058.
 % opt.proj = 'orth'; enforce orthonormal projections by working with 
 %   sqrtm(hyp.P*hyp.P')\hyp.P instead of hyp.P
 % opt.proj = 'norm'; enforce normal projections by working with 
@@ -48,7 +50,7 @@ function [post nlZ dnlZ] = infGrid(hyp, mean, cov, lik, x, y, opt)
 %    structure of the covariance of the grid.
 %    Please see cov/apxGrid.m for details.
 %
-% Copyright (c) by Carl Edward Rasmussen and Hannes Nickisch 2016-10-14.
+% Copyright (c) by Carl Edward Rasmussen and Hannes Nickisch 2018-03-26.
 
 if nargin<7, opt = []; end                          % make sure parameter exists
 xg = cov{3}; p = numel(xg);                 % extract underlying grid parameters
@@ -91,8 +93,12 @@ else return, end
 % no of samples for perturb-and-MAP, see George Papandreou and Alan L. Yuille:
 % "Efficient Variational Inference in Large-Scale Bayesian Compressed Sensing"
 ns = 0;                       % do nothing per default, 20 is suggested in paper
-if isfield(opt,'pred_var'), ns = max(ceil(abs(opt.pred_var)),20); end
-if ndcovs>0 && nargout>2, ns = max(ns,ndcovs); end  % possibly draw more samples
+if isfield(opt,'pred_var')                              % at least default value
+  ns = sign(opt.pred_var) * max(ceil(abs(opt.pred_var)),20);
+end
+if ndcovs>0 && nargout>2                            % possibly draw more samples
+  ns = sign(ns) * max(abs(ns),ndcovs);
+end  
 Mtal = M'*post.alpha;                         % blow up alpha vector from n to N
 kronmvm = K.kronmvm;
 if ns>0
@@ -124,6 +130,10 @@ if ns>0
       else                           dnlZ.projs = dPs; end
     end
   end
+elseif ns<0                                       % variance estimate using LOVE
+  v = M*K.mvm( ones(N,1)/N ); n = size(M,1); a = 1./post.sW.^2;
+  [Q,T] = apxGrid('lanczos_arpack', @(x)M*K.mvm(M'*x)+a.*x, v,min(abs(ns),n-1));
+  R = K.mvm(M'*Q)/chol(T); vg = sum(R.^2,2);
 else
   vg = zeros(N,1);                                       % no variance explained
 end
