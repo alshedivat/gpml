@@ -12,3 +12,9 @@ slprj/
 
 # Session info
 octave-workspace
+
+# Compiler-generated object files
+*.o
+*.o-*
+*.obj
+*.a
